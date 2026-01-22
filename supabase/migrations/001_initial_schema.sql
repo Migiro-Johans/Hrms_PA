@@ -203,20 +203,20 @@ CREATE INDEX IF NOT EXISTS idx_p9_records_year ON p9_records(year);
 CREATE INDEX IF NOT EXISTS idx_salary_structures_employee ON salary_structures(employee_id);
 CREATE INDEX IF NOT EXISTS idx_recurring_deductions_employee ON recurring_deductions(employee_id);
 
--- Row Level Security Policies
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE pay_grades ENABLE ROW LEVEL SECURITY;
-ALTER TABLE salary_structures ENABLE ROW LEVEL SECURITY;
-ALTER TABLE recurring_deductions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payroll_runs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payslips ENABLE ROW LEVEL SECURITY;
-ALTER TABLE p9_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security on all tables FIRST
+ALTER TABLE IF EXISTS companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS pay_grades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS salary_structures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS recurring_deductions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS payroll_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS payslips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS p9_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can only see their company's data
-CREATE POLICY "Users can view own company" ON companies
+-- Create Row Level Security Policies
+CREATE POLICY IF NOT EXISTS "Users can view own company" ON companies
   FOR SELECT USING (
     id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );

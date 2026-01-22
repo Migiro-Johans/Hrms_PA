@@ -2,17 +2,21 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import { Users, DollarSign, FileText, TrendingUp } from "lucide-react"
+import { PendingApprovals } from "@/components/dashboard/pending-approvals"
+import type { UserRole } from "@/types"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  // Get user's company
+  // Get user's profile and employee info
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from("users")
-    .select("company_id")
+    .select("*, companies(*), employees(id, is_line_manager)")
     .eq("id", user?.id)
     .single()
+
+  const userRole = (profile?.role || "employee") as UserRole
 
   // Get stats
   const { count: employeeCount } = await supabase
@@ -103,10 +107,24 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
+        {user && (
+          <PendingApprovals
+            user={{
+              id: user.id,
+              company_id: profile?.company_id || "",
+              role: userRole,
+              employee_id: profile?.employee_id,
+              employee: profile?.employees ? {
+                is_line_manager: profile.employees.is_line_manager || false
+              } : undefined
+            }}
+          />
+        )}
+
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="text-lg">Quick Actions</CardTitle>
             <CardDescription>Common payroll tasks</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
@@ -148,11 +166,13 @@ export default async function DashboardPage() {
             </a>
           </CardContent>
         </Card>
+      </div>
 
+      <div className="grid gap-4 md:grid-cols-1">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest payroll activities</CardDescription>
+            <CardTitle className="text-lg">Recent Payroll Activity</CardTitle>
+            <CardDescription>Status of the most recent payroll runs</CardDescription>
           </CardHeader>
           <CardContent>
             {latestPayroll ? (
@@ -166,9 +186,14 @@ export default async function DashboardPage() {
                       Status: {latestPayroll.status}
                     </p>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {latestPayroll.payslips?.length || 0} employees
-                  </span>
+                  <div className="text-right">
+                    <p className="font-medium text-primary">
+                      {formatCurrency(totalNet)} Total Net
+                    </p>
+                    <span className="text-xs text-muted-foreground">
+                      {latestPayroll.payslips?.length || 0} employees
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (

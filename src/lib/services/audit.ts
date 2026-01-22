@@ -177,10 +177,10 @@ export function getChangedFields(
   const changes: { field: string; old: unknown; new: unknown }[] = [];
 
   // Get all keys from both objects
-  const allKeys = new Set([
+  const allKeys = Array.from(new Set([
     ...Object.keys(oldValues),
     ...Object.keys(newValues),
-  ]);
+  ]));
 
   // Fields to ignore in comparison
   const ignoredFields = ['updated_at', 'created_at'];

@@ -10,19 +10,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { PayrollStatusBadge } from "@/components/payroll-status-badge"
 import { formatCurrency, getMonthName } from "@/lib/utils"
-import { Plus, Eye } from "lucide-react"
+import { Plus, Eye, CheckCircle, XCircle, DollarSign } from "lucide-react"
+import type { UserRole, PayrollStatus } from "@/types"
 
 export default async function PayrollPage() {
   const supabase = await createClient()
 
-  // Get user's company
+  // Get user's company and role
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from("users")
-    .select("company_id")
+    .select("company_id, role")
     .eq("id", user?.id)
     .single()
+
+  const userRole = (profile?.role || "employee") as UserRole
 
   // Get payroll runs with summary
   const { data: payrollRuns } = await supabase
@@ -35,6 +39,16 @@ export default async function PayrollPage() {
     .order("year", { ascending: false })
     .order("month", { ascending: false })
 
+  // Determine which actions the user can take
+  const canProcessPayroll = ["admin", "finance"].includes(userRole)
+  const canApproveAsHR = ["admin", "hr"].includes(userRole)
+  const canApproveAsManagement = ["admin", "management"].includes(userRole)
+
+  // Count pending approvals for the user
+  const pendingForHR = payrollRuns?.filter(r => r.status === "hr_pending").length || 0
+  const pendingForMgmt = payrollRuns?.filter(r => r.status === "mgmt_pending").length || 0
+  const pendingApprovedNotPaid = payrollRuns?.filter(r => r.status === "approved").length || 0
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -44,13 +58,124 @@ export default async function PayrollPage() {
             Manage monthly payroll runs
           </p>
         </div>
-        <Link href="/payroll/process">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Process Payroll
-          </Button>
-        </Link>
+        {canProcessPayroll && (
+          <Link href="/payroll/process">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Process Payroll
+            </Button>
+          </Link>
+        )}
       </div>
+
+      {/* Pending Approval Alerts */}
+      {canApproveAsHR && pendingForHR > 0 && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-yellow-800">
+                    {pendingForHR} payroll{pendingForHR > 1 ? "s" : ""} awaiting HR approval
+                  </p>
+                  <p className="text-sm text-yellow-600">
+                    Review and approve payroll runs processed by Finance
+                  </p>
+                </div>
+              </div>
+              <Link href="/payroll?filter=hr_pending">
+                <Button variant="outline" size="sm" className="border-yellow-300 text-yellow-700 hover:bg-yellow-100">
+                  Review Now
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {canApproveAsManagement && pendingForMgmt > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-blue-800">
+                    {pendingForMgmt} payroll{pendingForMgmt > 1 ? "s" : ""} awaiting Management approval
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    Final approval needed before payment
+                  </p>
+                </div>
+              </div>
+              <Link href="/payroll?filter=mgmt_pending">
+                <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                  Review Now
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {canProcessPayroll && pendingApprovedNotPaid > 0 && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-green-800">
+                    {pendingApprovedNotPaid} payroll{pendingApprovedNotPaid > 1 ? "s" : ""} approved and ready for payment
+                  </p>
+                  <p className="text-sm text-green-600">
+                    Mark as paid after processing payments
+                  </p>
+                </div>
+              </div>
+              <Link href="/payroll?filter=approved">
+                <Button variant="outline" size="sm" className="border-green-300 text-green-700 hover:bg-green-100">
+                  View
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {canProcessPayroll && payrollRuns?.some(r => ["hr_rejected", "mgmt_rejected"].includes(r.status)) && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <XCircle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-red-800">
+                    Payroll Rejected
+                  </p>
+                  <p className="text-sm text-red-600">
+                    One or more payroll runs have been rejected and require corrections
+                  </p>
+                </div>
+              </div>
+              <Link href="/payroll?filter=rejected">
+                <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
+                  Fix Now
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -87,6 +212,10 @@ export default async function PayrollPage() {
                   0
                 ) || 0
 
+                const showApproveButton =
+                  (canApproveAsHR && run.status === "hr_pending") ||
+                  (canApproveAsManagement && run.status === "mgmt_pending")
+
                 return (
                   <TableRow key={run.id}>
                     <TableCell className="font-medium">
@@ -97,26 +226,24 @@ export default async function PayrollPage() {
                     <TableCell>{formatCurrency(totalNet)}</TableCell>
                     <TableCell>{formatCurrency(totalPaye)}</TableCell>
                     <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          run.status === "paid"
-                            ? "bg-green-100 text-green-700"
-                            : run.status === "approved"
-                            ? "bg-blue-100 text-blue-700"
-                            : run.status === "processing"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {run.status}
-                      </span>
+                      <PayrollStatusBadge status={run.status as PayrollStatus} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/payroll/${run.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {showApproveButton && (
+                          <Link href={`/payroll/${run.id}/approve`}>
+                            <Button variant="default" size="sm">
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Review
+                            </Button>
+                          </Link>
+                        )}
+                        <Link href={`/payroll/${run.id}`}>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -125,9 +252,11 @@ export default async function PayrollPage() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
                     <p className="text-muted-foreground">No payroll runs yet</p>
-                    <Link href="/payroll/process">
-                      <Button variant="link">Process your first payroll</Button>
-                    </Link>
+                    {canProcessPayroll && (
+                      <Link href="/payroll/process">
+                        <Button variant="link">Process your first payroll</Button>
+                      </Link>
+                    )}
                   </TableCell>
                 </TableRow>
               )}

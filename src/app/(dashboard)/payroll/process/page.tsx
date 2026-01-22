@@ -226,15 +226,50 @@ export default function ProcessPayrollPage() {
         return
       }
 
-      // Update status to approved
+      // Update status to hr_pending for approval workflow
+      // Finance processes → HR approves → Management approves → Paid
       await supabase
         .from("payroll_runs")
-        .update({ status: "approved" })
+        .update({ status: "hr_pending" })
         .eq("id", payrollRun.id)
 
+      // Create approval request
+      try {
+        const { createApprovalRequestAction } = await import("@/lib/actions/workflow")
+        const { data: { user: currentUser } } = await supabase.auth.getUser()
+
+        // Get employee ID for the current user
+        const { data: userData } = await supabase
+          .from("users")
+          .select("employee_id")
+          .eq("id", currentUser?.id)
+          .single()
+
+        if (userData?.employee_id) {
+          const workflowResult = await createApprovalRequestAction({
+            companyId: companyId!,
+            entityType: "payroll",
+            entityId: payrollRun.id,
+            requesterId: userData.employee_id,
+            metadata: {
+              month,
+              year,
+              total_gross: totals.gross,
+              total_net: totals.net
+            }
+          })
+
+          if (workflowResult.error) {
+            console.error("Workflow action error:", workflowResult.error)
+          }
+        }
+      } catch (workflowError) {
+        console.error("Failed to create approval request:", workflowError)
+      }
+
       toast({
-        title: "Success",
-        description: `Payroll for ${getMonthName(month)} ${year} processed successfully`,
+        title: "Payroll Submitted for Approval",
+        description: `Payroll for ${getMonthName(month)} ${year} has been submitted for HR approval`,
       })
 
       router.push(`/payroll/${payrollRun.id}`)
@@ -421,7 +456,7 @@ export default function ProcessPayrollPage() {
               Cancel
             </Button>
             <Button onClick={processPayroll} disabled={processing}>
-              {processing ? "Processing..." : "Confirm & Process Payroll"}
+              {processing ? "Submitting..." : "Submit for Approval"}
             </Button>
           </div>
         </>

@@ -82,6 +82,14 @@ export async function createApprovalRequest(
     throw new Error(`Failed to create approval request: ${error.message}`);
   }
 
+  // Sync entity status if it's a payroll run
+  if (entityType === 'payroll') {
+    await supabase
+      .from('payroll_runs')
+      .update({ status: 'hr_pending' }) // Initial state for payroll workflow
+      .eq('id', entityId);
+  }
+
   return data as ApprovalRequest;
 }
 
@@ -163,6 +171,30 @@ export async function processApproval(
 
   if (updateError) {
     throw new Error(`Failed to update approval request: ${updateError.message}`);
+  }
+
+  // Sync entity status
+  if (request.entity_type === 'payroll') {
+    let payrollStatus: string = '';
+
+    if (newStatus === 'rejected') {
+      payrollStatus = currentStep === 1 ? 'hr_rejected' : 'mgmt_rejected';
+    } else if (newStatus === 'approved') {
+      payrollStatus = 'approved';
+    } else {
+      // Pending next step
+      payrollStatus = newStep === 2 ? 'hr_pending' : 'mgmt_pending';
+    }
+
+    if (payrollStatus) {
+      await supabase
+        .from('payroll_runs')
+        .update({
+          status: payrollStatus,
+          rejection_comments: action === 'rejected' ? comments : null
+        })
+        .eq('id', request.entity_id);
+    }
   }
 
   return updatedRequest as ApprovalRequest;
