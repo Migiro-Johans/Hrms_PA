@@ -1,4 +1,4 @@
-// Database Types for Kenya Payroll System
+// Database Types for Meridian Kapital Human resource system
 
 // =====================================================
 // USER ROLES

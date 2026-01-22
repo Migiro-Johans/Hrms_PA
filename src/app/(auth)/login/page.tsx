@@ -59,10 +59,10 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
             <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">KP</span>
+              <span className="text-2xl font-bold text-white">MK</span>
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Kenya Payroll System</CardTitle>
+          <CardTitle className="text-2xl text-center">Meridian Kapital HR System</CardTitle>
           <CardDescription className="text-center">
             Enter your credentials to access your account
           </CardDescription>

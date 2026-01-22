@@ -156,9 +156,9 @@ export function Sidebar({ user }: SidebarProps) {
         <div className="flex h-16 shrink-0 items-center">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-lg font-bold text-white">KP</span>
+              <span className="text-lg font-bold text-white">MK</span>
             </div>
-            <span className="text-lg font-semibold">Payroll</span>
+            <span className="text-lg font-semibold text-primary">HR System</span>
           </div>
         </div>
 

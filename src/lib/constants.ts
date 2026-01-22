@@ -1,4 +1,4 @@
-// Kenya Payroll Constants (2024/2025)
+// Meridian Kapital HR System Constants (Kenya Statutory)
 
 import type { UserRole } from '@/types';
 

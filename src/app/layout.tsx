@@ -6,8 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kenya Payroll System",
-  description: "Complete payroll management system for Kenya with PAYE, NSSF, SHA, and statutory compliance",
+  title: "Meridian Kapital Human resource system",
+  description: "Complete HR and payroll management system for Meridian Kapital with statutory compliance",
 };
 
 export default function RootLayout({
