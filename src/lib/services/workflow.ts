@@ -82,11 +82,21 @@ export async function createApprovalRequest(
     throw new Error(`Failed to create approval request: ${error.message}`);
   }
 
-  // Sync entity status if it's a payroll run
+  // Sync entity status based on type
   if (entityType === 'payroll') {
     await supabase
       .from('payroll_runs')
-      .update({ status: 'hr_pending' }) // Initial state for payroll workflow
+      .update({ status: 'hr_pending' })
+      .eq('id', entityId);
+  } else if (entityType === 'leave') {
+    await supabase
+      .from('leave_requests')
+      .update({ status: 'pending' })
+      .eq('id', entityId);
+  } else if (entityType === 'per_diem') {
+    await supabase
+      .from('per_diem_requests')
+      .update({ status: 'pending' })
       .eq('id', entityId);
   }
 
@@ -195,6 +205,73 @@ export async function processApproval(
         })
         .eq('id', request.entity_id);
     }
+  } else if (request.entity_type === 'leave') {
+    // Determine specific status for the entity
+    let entityStatus = newStatus;
+    if (newStatus === 'pending') {
+      if (newStep === 2) entityStatus = 'hr_pending';
+      else if (newStep === 3) entityStatus = 'finance_pending'; // Adjust based on common flows
+    } else if (newStatus === 'rejected') {
+      entityStatus = currentStep === 1 ? 'manager_rejected' : 'hr_rejected';
+    }
+
+    const updateData: any = {
+      status: entityStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (action === 'rejected') {
+      updateData.rejection_reason = comments;
+    }
+
+    // Capture specific approver info based on current step
+    if (currentStep === 1 && action === 'approved') {
+      updateData.line_manager_approved_by = approverId;
+      updateData.line_manager_approved_at = new Date().toISOString();
+    } else if (currentStep === 2 && action === 'approved') {
+      updateData.hr_approved_by = approverId;
+      updateData.hr_approved_at = new Date().toISOString();
+    }
+
+    await supabase
+      .from('leave_requests')
+      .update(updateData)
+      .eq('id', request.entity_id);
+  } else if (request.entity_type === 'per_diem') {
+    // Determine specific status for the entity
+    let entityStatus = newStatus;
+    if (newStatus === 'pending') {
+      if (newStep === 2) entityStatus = 'finance_pending';
+      else if (newStep === 3) entityStatus = 'management_pending';
+    } else if (newStatus === 'rejected') {
+      entityStatus = currentStep === 1 ? 'manager_rejected' : 'finance_rejected';
+    }
+
+    const updateData: any = {
+      status: entityStatus === 'approved' ? 'approved' : entityStatus,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (action === 'rejected') {
+      updateData.rejection_reason = comments;
+    }
+
+    // Capture step-specific approvals
+    if (currentStep === 1 && action === 'approved') {
+      updateData.line_manager_approved_by = approverId;
+      updateData.line_manager_approved_at = new Date().toISOString();
+    } else if (currentStep === 2 && action === 'approved') {
+      updateData.finance_approved_by = approverId;
+      updateData.finance_approved_at = new Date().toISOString();
+    } else if (currentStep === 3 && action === 'approved') {
+      updateData.management_approved_by = approverId;
+      updateData.management_approved_at = new Date().toISOString();
+    }
+
+    await supabase
+      .from('per_diem_requests')
+      .update(updateData)
+      .eq('id', request.entity_id);
   }
 
   return updatedRequest as ApprovalRequest;

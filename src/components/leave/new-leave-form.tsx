@@ -10,25 +10,60 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { ArrowLeft } from "lucide-react"
+import { createLeaveRequestAction } from "@/lib/actions/leave"
+import type { LeaveType } from "@/types"
 
-export function NewLeaveForm() {
+interface NewLeaveFormProps {
+    employeeId: string
+    companyId: string
+    leaveTypes: LeaveType[]
+}
+
+export function NewLeaveForm({ employeeId, companyId, leaveTypes }: NewLeaveFormProps) {
     const router = useRouter()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
+    const [formData, setFormData] = useState({
+        leaveTypeId: "",
+        startDate: "",
+        endDate: "",
+        reason: "",
+    })
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!formData.leaveTypeId || !formData.startDate || !formData.endDate) {
+            toast({
+                title: "Error",
+                description: "Please fill in all required fields.",
+                variant: "destructive",
+            })
+            return
+        }
+
         setLoading(true)
 
-        // Mock submission
-        setTimeout(() => {
+        try {
+            await createLeaveRequestAction({
+                employeeId,
+                companyId,
+                ...formData,
+            })
+
             toast({
                 title: "Request Submitted",
                 description: "Your leave request has been sent for approval.",
             })
             router.push("/leave")
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to submit request",
+                variant: "destructive",
+            })
+        } finally {
             setLoading(false)
-        }, 1500)
+        }
     }
 
     return (
@@ -50,15 +85,19 @@ export function NewLeaveForm() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="leave_type">Leave Type</Label>
-                            <Select required>
+                            <Select
+                                required
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, leaveTypeId: value }))}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="annual">Annual Leave</SelectItem>
-                                    <SelectItem value="sick">Sick Leave</SelectItem>
-                                    <SelectItem value="personal">Personal Leave</SelectItem>
-                                    <SelectItem value="maternity">Maternity Leave</SelectItem>
+                                    {leaveTypes.map((type) => (
+                                        <SelectItem key={type.id} value={type.id}>
+                                            {type.name} ({type.days_per_year} days)
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -66,11 +105,23 @@ export function NewLeaveForm() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="start_date">Start Date</Label>
-                                <Input type="date" required id="start_date" />
+                                <Input
+                                    type="date"
+                                    required
+                                    id="start_date"
+                                    value={formData.startDate}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="end_date">End Date</Label>
-                                <Input type="date" required id="end_date" />
+                                <Input
+                                    type="date"
+                                    required
+                                    id="end_date"
+                                    value={formData.endDate}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                                />
                             </div>
                         </div>
 
@@ -80,6 +131,8 @@ export function NewLeaveForm() {
                                 id="reason"
                                 placeholder="Provide more details about your leave..."
                                 className="min-h-[100px]"
+                                value={formData.reason}
+                                onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                             />
                         </div>
 

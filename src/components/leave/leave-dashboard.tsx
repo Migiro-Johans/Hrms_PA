@@ -8,40 +8,14 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 
-interface LeaveHistoryItem {
-    id: string
-    type: string
-    start_date: string
-    end_date: string
-    status: string
-    days: number
+import type { LeaveBalance, LeaveRequest } from "@/types"
+
+interface LeaveDashboardProps {
+    initialBalances: LeaveBalance[]
+    initialHistory: any[] // Complex join type
 }
 
-export function LeaveDashboard() {
-    const [loading, setLoading] = useState(true)
-    const [history, setHistory] = useState<LeaveHistoryItem[]>([])
-
-    useEffect(() => {
-        // Mock data for initial UI
-        setTimeout(() => {
-            setHistory([
-                { id: "1", type: "Annual", start_date: "2024-02-01", end_date: "2024-02-05", status: "approved", days: 5 },
-                { id: "2", type: "Sick", start_date: "2024-01-15", end_date: "2024-01-16", status: "approved", days: 2 },
-                { id: "3", type: "Annual", start_date: "2024-03-10", end_date: "2024-03-15", status: "hr_pending", days: 6 },
-            ])
-            setLoading(false)
-        }, 1000)
-    }, [])
-
-    const balances = [
-        { type: "Annual", total: 21, used: 7, remaining: 14 },
-        { type: "Sick", total: 10, used: 2, remaining: 8 },
-        { type: "Personal", total: 5, used: 0, remaining: 5 },
-    ]
-
-    if (loading) {
-        return <div className="space-y-6"><Skeleton className="h-40 w-full" /><Skeleton className="h-80 w-full" /></div>
-    }
+export function LeaveDashboard({ initialBalances, initialHistory }: LeaveDashboardProps) {
 
     return (
         <div className="space-y-6">
@@ -58,21 +32,21 @@ export function LeaveDashboard() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-                {balances.map((b) => (
-                    <Card key={b.type}>
+                {initialBalances.map((b) => (
+                    <Card key={b.id}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">{b.type} Leave</CardTitle>
+                            <CardTitle className="text-sm font-medium">{b.leave_type?.name}</CardTitle>
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{b.remaining} Days</div>
+                            <div className="text-2xl font-bold">{Number(b.entitled_days) - Number(b.used_days)} Days</div>
                             <p className="text-xs text-muted-foreground">
-                                {b.used} used of {b.total} total days
+                                {Number(b.used_days)} used of {Number(b.entitled_days)} total days
                             </p>
                             <div className="mt-4 h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-primary"
-                                    style={{ width: `${(b.used / b.total) * 100}%` }}
+                                    style={{ width: `${(Number(b.used_days) / Number(b.entitled_days)) * 100}%` }}
                                 />
                             </div>
                         </CardContent>
@@ -87,31 +61,37 @@ export function LeaveDashboard() {
                 </CardHeader>
                 <CardContent>
                     <div className="divide-y">
-                        {history.map((h) => (
-                            <div key={h.id} className="flex items-center justify-between py-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-2 bg-gray-100 rounded-full">
-                                        <Calendar className="h-4 w-4 text-gray-600" />
+                        {initialHistory.length === 0 ? (
+                            <p className="py-4 text-sm text-center text-muted-foreground">No leave history found.</p>
+                        ) : (
+                            initialHistory.map((h) => (
+                                <div key={h.id} className="flex items-center justify-between py-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-2 bg-gray-100 rounded-full">
+                                            <Calendar className="h-4 w-4 text-gray-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium">{h.leave_types?.name} Leave</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {new Date(h.start_date).toLocaleDateString()} - {new Date(h.end_date).toLocaleDateString()}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-medium">{h.type} Leave</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {new Date(h.start_date).toLocaleDateString()} - {new Date(h.end_date).toLocaleDateString()}
-                                        </p>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-sm font-medium">{h.days_requested} Days</span>
+                                        {h.status === "approved" ? (
+                                            <Badge variant="success" className="bg-green-100 text-green-800">Approved</Badge>
+                                        ) : h.status === "pending" ? (
+                                            <Badge variant="warning" className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                                        ) : h.status === "hr_pending" || h.status === "mgmt_pending" ? (
+                                            <Badge variant="warning" className="bg-yellow-100 text-yellow-800">In Review</Badge>
+                                        ) : (
+                                            <Badge variant="destructive">Rejected</Badge>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-sm font-medium">{h.days} Days</span>
-                                    {h.status === "approved" ? (
-                                        <Badge variant="success" className="bg-green-100 text-green-800">Approved</Badge>
-                                    ) : h.status === "hr_pending" ? (
-                                        <Badge variant="warning" className="bg-yellow-100 text-yellow-800">Pending HR</Badge>
-                                    ) : (
-                                        <Badge variant="destructive">Rejected</Badge>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </CardContent>
             </Card>

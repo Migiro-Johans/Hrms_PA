@@ -94,7 +94,7 @@ export function PendingApprovals({ user }: PendingApprovalsProps) {
     const getApproveUrl = (request: ApprovalRequest) => {
         switch (request.entity_type) {
             case "payroll": return `/payroll/${request.entity_id}/approve`
-            case "leave": return `/leave/approvals` // Or specific leave detail if implemented
+            case "leave": return `/leave/approvals`
             case "per_diem": return `/per-diem/approvals`
             case "promotion": return `/promotions`
             default: return "#"

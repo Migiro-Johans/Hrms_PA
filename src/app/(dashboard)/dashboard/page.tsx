@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatCurrency } from "@/lib/utils"
 import { Users, DollarSign, FileText, TrendingUp } from "lucide-react"
 import { PendingApprovals } from "@/components/dashboard/pending-approvals"
+import { TaskSummary } from "@/components/dashboard/task-summary"
 import type { UserRole } from "@/types"
 
 export default async function DashboardPage() {
@@ -119,6 +120,13 @@ export default async function DashboardPage() {
                 is_line_manager: profile.employees.is_line_manager || false
               } : undefined
             }}
+          />
+        )}
+
+        {profile?.employees && (
+          <TaskSummary
+            employeeId={profile.employees.id}
+            companyId={profile.company_id}
           />
         )}
 
