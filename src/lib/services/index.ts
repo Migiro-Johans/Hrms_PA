@@ -6,3 +6,5 @@ export * from './notifications';
 export * from './leave';
 export * from './per-diem';
 export * from './tasks';
+export * from './departments';
+export * from './admin';

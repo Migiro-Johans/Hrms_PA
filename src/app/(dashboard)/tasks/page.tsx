@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckSquare, Clock, AlertCircle } from "lucide-react"
+import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react"
 import { getTasksAction } from "@/lib/actions/tasks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,20 +18,34 @@ export default async function TasksPage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees(*)')
+        .select('*, employees(id, is_line_manager)')
         .eq('id', user.id)
         .single()
 
+    const userRole = profile?.role || "employee"
+    const isLineManager = (profile?.employees as any)?.is_line_manager || false
+    const canAssignTasks = ["admin", "hr"].includes(userRole) || isLineManager
+
     const tasks = await getTasksAction({
-        employeeId: profile?.employees?.id || "",
+        employeeId: (profile?.employees as any)?.id || "",
         companyId: profile?.company_id || ""
     })
 
     return (
         <div className="container mx-auto py-6 space-y-6">
-            <div>
-                <h2 className="text-2xl font-bold tracking-tight">My Tasks</h2>
-                <p className="text-muted-foreground">Manage your assigned tasks and action items</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold tracking-tight">My Tasks</h2>
+                    <p className="text-muted-foreground">Manage your assigned tasks and action items</p>
+                </div>
+                {canAssignTasks && (
+                    <Link href="/tasks/assign">
+                        <Button>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Assign Task
+                        </Button>
+                    </Link>
+                )}
             </div>
 
             {tasks.length === 0 ? (

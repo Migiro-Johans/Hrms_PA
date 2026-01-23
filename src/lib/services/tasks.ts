@@ -57,3 +57,76 @@ export async function updateTaskStatus(taskId: string, status: string): Promise<
         throw new Error(`Failed to update task: ${error.message}`);
     }
 }
+
+/**
+ * Create a new task
+ */
+export async function createTask(params: {
+    companyId: string;
+    assignedTo: string;
+    assignedBy: string;
+    title: string;
+    description?: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    dueDate?: string;
+    departmentId?: string;
+}): Promise<Task> {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from('tasks')
+        .insert({
+            company_id: params.companyId,
+            assigned_to: params.assignedTo,
+            assigned_by: params.assignedBy,
+            title: params.title,
+            description: params.description || null,
+            priority: params.priority || 'medium',
+            due_date: params.dueDate || null,
+            department_id: params.departmentId || null,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (error) {
+        throw new Error(`Failed to create task: ${error.message}`);
+    }
+
+    return data as Task;
+}
+
+/**
+ * Get employees that a user can assign tasks to
+ * - Line managers can assign to their direct reports
+ * - HR and Admin can assign to anyone in the company
+ */
+export async function getAssignableEmployees(params: {
+    companyId: string;
+    userId: string;
+    userRole: string;
+    isLineManager: boolean;
+    employeeId?: string;
+}): Promise<{ id: string; first_name: string; last_name: string; department?: { name: string } }[]> {
+    const supabase = await createClient();
+
+    let query = supabase
+        .from('employees')
+        .select('id, first_name, last_name, departments(name)')
+        .eq('company_id', params.companyId)
+        .eq('status', 'active');
+
+    // If line manager, only get direct reports
+    if (params.isLineManager && !['admin', 'hr'].includes(params.userRole)) {
+        query = query.eq('manager_id', params.employeeId);
+    }
+
+    const { data, error } = await query.order('first_name');
+
+    if (error) {
+        throw new Error(`Failed to fetch employees: ${error.message}`);
+    }
+
+    return data as any[];
+}
