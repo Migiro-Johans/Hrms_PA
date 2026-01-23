@@ -8,9 +8,18 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 
+interface LeaveHistoryItem {
+    id: string
+    type: string
+    start_date: string
+    end_date: string
+    status: string
+    days: number
+}
+
 export function LeaveDashboard() {
     const [loading, setLoading] = useState(true)
-    const [history, setHistory] = useState([])
+    const [history, setHistory] = useState<LeaveHistoryItem[]>([])
 
     useEffect(() => {
         // Mock data for initial UI
