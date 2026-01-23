@@ -72,23 +72,22 @@ export async function GET() {
         },
         step2_profile: {
           profile,
-          error: profileError?.message,
         },
         step3_allEmployees: {
           count: allEmployees?.length || 0,
           employees: allEmployees,
-          error: allEmployeesError?.message,
+          error: allEmployeesError ? allEmployeesError.message : null,
         },
         step4_companyEmployees: {
           companyId: profile?.company_id,
           count: companyEmployees?.length || 0,
           employees: companyEmployees,
-          error: companyEmployeesError?.message,
+          error: companyEmployeesError ? companyEmployeesError.message : null,
         },
         step5_companies: {
           count: companies?.length || 0,
           companies,
-          error: companiesError?.message,
+          error: companiesError ? companiesError.message : null,
         },
       },
     })
