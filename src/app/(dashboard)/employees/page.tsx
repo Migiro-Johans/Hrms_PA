@@ -25,12 +25,13 @@ export default async function EmployeesPage() {
     .single()
 
   // Get employees with salary structures
+  // Note: Using explicit foreign key hint for departments due to multiple relationships
   const { data: employees } = await supabase
     .from("employees")
     .select(`
       *,
-      departments(name),
-      pay_grades(pay_group, pay_grade),
+      departments:department_id(name),
+      pay_grades:pay_grade_id(pay_group, pay_grade),
       salary_structures(basic_salary, car_allowance, meal_allowance, telephone_allowance)
     `)
     .eq("company_id", profile?.company_id)

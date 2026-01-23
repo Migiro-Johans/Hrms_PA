@@ -47,12 +47,13 @@ export async function GET() {
       .select("id, staff_id, first_name, last_name, company_id, status")
 
     // Step 4: Get employees filtered by company
+    // Note: Using explicit foreign key hint for departments due to multiple relationships
     const { data: companyEmployees, error: companyEmployeesError } = await supabase
       .from("employees")
       .select(`
         *,
-        departments(name),
-        pay_grades(pay_group, pay_grade),
+        departments:department_id(name),
+        pay_grades:pay_grade_id(pay_group, pay_grade),
         salary_structures(basic_salary, car_allowance, meal_allowance, telephone_allowance)
       `)
       .eq("company_id", profile?.company_id)
