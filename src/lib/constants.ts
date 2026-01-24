@@ -15,13 +15,16 @@ export const PAYE_TAX_BANDS = [
   { min: 800001, max: Infinity, rate: 0.35 },
 ] as const;
 
-// NSSF Rates (New NSSF Act)
+// NSSF Rates (2024 - Updated Upper Earnings Limit)
 export const NSSF = {
-  TIER_I_LIMIT: 7000, // KES 7,000
-  TIER_II_UPPER_LIMIT: 36000, // KES 36,000
+  TIER_I_LIMIT: 8000, // KES 8,000 (Tier I upper limit)
+  UPPER_EARNINGS_LIMIT: 72000, // KES 72,000 (Upper earnings limit)
   RATE: 0.06, // 6%
-  MAX_EMPLOYEE_CONTRIBUTION: 2160, // Max employee contribution per month
-  MAX_EMPLOYER_CONTRIBUTION: 2160, // Max employer contribution per month
+  TIER_I_MAX: 480, // Max Tier I contribution (8,000 * 6%)
+  MAX_EMPLOYEE_CONTRIBUTION: 4320, // Max employee contribution per month
+  MAX_EMPLOYER_CONTRIBUTION: 4320, // Max employer contribution per month
+  // Legacy fields for backward compatibility
+  TIER_II_UPPER_LIMIT: 72000, // Deprecated: Use UPPER_EARNINGS_LIMIT
 } as const;
 
 // SHA/SHIF (Social Health Insurance Fund) - Replacing NHIF

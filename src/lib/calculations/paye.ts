@@ -2,7 +2,17 @@ import { PAYE_TAX_BANDS, PERSONAL_RELIEF, INSURANCE_RELIEF } from '../constants'
 
 /**
  * Calculate PAYE (Pay As You Earn) Tax
- * Uses Kenya's progressive tax bands
+ * Uses Kenya's progressive tax bands (2024)
+ *
+ * Excel Formula:
+ * =-(MIN(X,24000)*10%+IF(X>24000,MIN(X-24000,8333)*25%,0)+IF(X>32333,MIN(X-32333,467667)*30%,0)+IF(X>500000,MIN(X-500000,300000)*32.5%,0)+IF(X>800000,(X-800000)*35%,0))
+ *
+ * Tax Bands:
+ * - KES 0 - 24,000: 10%
+ * - KES 24,001 - 32,333: 25% (band width: 8,333)
+ * - KES 32,334 - 500,000: 30% (band width: 467,667)
+ * - KES 500,001 - 800,000: 32.5% (band width: 300,000)
+ * - Above KES 800,000: 35%
  */
 export function calculatePAYE(
   taxablePay: number,
@@ -22,18 +32,30 @@ export function calculatePAYE(
     };
   }
 
-  // Calculate income tax using progressive bands
+  // Calculate income tax using the exact Excel formula logic
   let incomeTax = 0;
-  let remainingIncome = taxablePay;
 
-  for (const band of PAYE_TAX_BANDS) {
-    if (remainingIncome <= 0) break;
+  // Band 1: First KES 24,000 at 10%
+  incomeTax += Math.min(taxablePay, 24000) * 0.10;
 
-    const bandWidth = band.max === Infinity ? remainingIncome : band.max - band.min + 1;
-    const taxableInBand = Math.min(remainingIncome, bandWidth);
+  // Band 2: KES 24,001 - 32,333 at 25% (width: 8,333)
+  if (taxablePay > 24000) {
+    incomeTax += Math.min(taxablePay - 24000, 8333) * 0.25;
+  }
 
-    incomeTax += taxableInBand * band.rate;
-    remainingIncome -= taxableInBand;
+  // Band 3: KES 32,334 - 500,000 at 30% (width: 467,667)
+  if (taxablePay > 32333) {
+    incomeTax += Math.min(taxablePay - 32333, 467667) * 0.30;
+  }
+
+  // Band 4: KES 500,001 - 800,000 at 32.5% (width: 300,000)
+  if (taxablePay > 500000) {
+    incomeTax += Math.min(taxablePay - 500000, 300000) * 0.325;
+  }
+
+  // Band 5: Above KES 800,000 at 35%
+  if (taxablePay > 800000) {
+    incomeTax += (taxablePay - 800000) * 0.35;
   }
 
   // Personal Relief (KES 2,400 per month)
@@ -62,13 +84,20 @@ export function calculatePAYE(
 
 /**
  * Calculate taxable pay
- * Taxable Pay = Gross Pay - NSSF (Employee contribution)
+ *
+ * Excel Formula: =SUM(T:W) where T=Gross, U=SHIF(-), V=AHL(-), W=NSSF(-)
+ * Taxable Pay = Gross Pay - SHIF - AHL - NSSF
+ *
+ * Note: When using positive values for deductions, subtract them.
+ * The Excel template stores deductions as negative for easy SUM formulas.
  */
 export function calculateTaxablePay(
   grossPay: number,
+  shifEmployee: number,
+  ahlEmployee: number,
   nssfEmployee: number
 ): number {
-  const taxable = grossPay - nssfEmployee;
+  const taxable = grossPay - shifEmployee - ahlEmployee - nssfEmployee;
   return Math.max(0, Math.round(taxable * 100) / 100);
 }
 

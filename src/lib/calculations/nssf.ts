@@ -1,38 +1,39 @@
 import { NSSF } from '../constants';
 
 /**
- * Calculate NSSF contribution (New NSSF Act)
- * Tier I: 6% of pensionable pay up to KES 7,000 (max KES 420)
- * Tier II: 6% of pensionable pay between KES 7,000 and KES 36,000 (max KES 1,740)
- * Total max: KES 2,160 per month (employee) + KES 2,160 (employer)
+ * Calculate NSSF contribution (2024 rates with Upper Earnings Limit of KES 72,000)
+ *
+ * Formula: IF(salary<=8000, salary*0.06, IF(salary<=72000, 480+(salary-8000)*0.06, 480+(72000-8000)*0.06))
+ *
+ * Tier I: 6% of pensionable pay up to KES 8,000 (max KES 480)
+ * Tier II: 6% of pensionable pay between KES 8,000 and KES 72,000 (max KES 3,840)
+ * Total max: KES 4,320 per month (employee) + KES 4,320 (employer)
  */
-export function calculateNSSF(basicSalary: number): {
+export function calculateNSSF(grossSalary: number): {
   employee: number;
   employer: number;
 } {
-  if (basicSalary <= 0) {
+  if (grossSalary <= 0) {
     return { employee: 0, employer: 0 };
   }
 
-  let tierI = 0;
-  let tierII = 0;
+  let contribution: number;
 
-  // Tier I: 6% of pensionable pay up to KES 7,000
-  if (basicSalary > 0) {
-    const tierIBase = Math.min(basicSalary, NSSF.TIER_I_LIMIT);
-    tierI = tierIBase * NSSF.RATE;
+  if (grossSalary <= NSSF.TIER_I_LIMIT) {
+    // Salary up to KES 8,000: 6% of salary
+    contribution = grossSalary * NSSF.RATE;
+  } else if (grossSalary <= NSSF.UPPER_EARNINGS_LIMIT) {
+    // Salary between KES 8,000 and KES 72,000
+    // Tier I max (480) + 6% of amount above 8,000
+    contribution = NSSF.TIER_I_MAX + (grossSalary - NSSF.TIER_I_LIMIT) * NSSF.RATE;
+  } else {
+    // Salary above KES 72,000: capped at upper earnings limit
+    // Tier I max (480) + 6% of (72,000 - 8,000) = 480 + 3,840 = 4,320
+    contribution = NSSF.TIER_I_MAX + (NSSF.UPPER_EARNINGS_LIMIT - NSSF.TIER_I_LIMIT) * NSSF.RATE;
   }
 
-  // Tier II: 6% of pensionable pay between KES 7,000 and KES 36,000
-  if (basicSalary > NSSF.TIER_I_LIMIT) {
-    const tierIIBase = Math.min(
-      basicSalary - NSSF.TIER_I_LIMIT,
-      NSSF.TIER_II_UPPER_LIMIT - NSSF.TIER_I_LIMIT
-    );
-    tierII = tierIIBase * NSSF.RATE;
-  }
-
-  const totalContribution = Math.min(tierI + tierII, NSSF.MAX_EMPLOYEE_CONTRIBUTION);
+  // Ensure we don't exceed maximum
+  const totalContribution = Math.min(contribution, NSSF.MAX_EMPLOYEE_CONTRIBUTION);
 
   // Round to 2 decimal places
   const employeeContribution = Math.round(totalContribution * 100) / 100;

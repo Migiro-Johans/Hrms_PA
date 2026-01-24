@@ -2,12 +2,28 @@ import { calculateNSSF } from './nssf';
 import { calculateSHIF } from './shif';
 import { calculateAHL } from './ahl';
 import { calculatePAYE, calculateTaxablePay } from './paye';
-import { NITA, PERSONAL_RELIEF } from '../constants';
+import { NITA } from '../constants';
 import type { PayrollInput, PayrollCalculation } from '@/types';
 
 /**
  * Calculate complete payroll for an employee
  * This is the main function that orchestrates all statutory deductions
+ *
+ * Follows the Kenyan payroll template formulas:
+ * - Gross Payable = SUM(Basic, Car, Meal, Tel) / CalendarDays * DaysWorked
+ * - SHIF = 2.75% of Gross (negative)
+ * - AHL Employee = 1.5% of Gross (negative)
+ * - NSSF Employee = 6% tiered up to KES 72,000 limit (negative)
+ * - Taxable Pay = Gross + SHIF + AHL + NSSF (deductions are negative)
+ * - Income Tax = Progressive PAYE bands (negative)
+ * - Personal Relief = KES 2,400
+ * - PAYE = Income Tax + Personal Relief
+ * - Net Payable = Taxable Pay + PAYE
+ * - Final Net Pay = Net Payable + HELB + Other Deductions
+ * - NITA Employer = KES 50
+ * - NSSF Employer = matches employee
+ * - AHL Employer = matches employee
+ * - Cost to Company = Gross + NITA + NSSF Employer + AHL Employer
  */
 export function calculatePayroll(input: PayrollInput): PayrollCalculation {
   // Extract input values with defaults
@@ -21,14 +37,18 @@ export function calculatePayroll(input: PayrollInput): PayrollCalculation {
   const helb = input.helb || 0;
   const insurancePremium = input.insurance_premium || 0;
 
+  // Proration support (optional)
+  const calendarDays = input.calendar_days || 0;
+  const daysWorked = input.days_worked || 0;
+
   // Calculate total other allowances
   const totalOtherAllowances = Object.values(otherAllowances).reduce(
     (sum, val) => sum + (val || 0),
     0
   );
 
-  // Calculate Gross Pay
-  const grossPay =
+  // Calculate base total (before proration)
+  const baseTotal =
     basicSalary +
     carAllowance +
     mealAllowance +
@@ -36,22 +56,43 @@ export function calculatePayroll(input: PayrollInput): PayrollCalculation {
     housingAllowance +
     totalOtherAllowances;
 
-  // Calculate NSSF (based on basic salary)
-  const nssf = calculateNSSF(basicSalary);
+  // Calculate Gross Pay (with proration if applicable)
+  // Excel Formula: =SUM(P:S)/N*O
+  let grossPay: number;
+  if (calendarDays > 0 && daysWorked > 0 && daysWorked < calendarDays) {
+    // Prorated: (Total Allowances / Calendar Days) * Days Worked
+    grossPay = (baseTotal / calendarDays) * daysWorked;
+  } else {
+    // Full month
+    grossPay = baseTotal;
+  }
 
-  // Calculate SHIF (based on gross salary)
+  // Calculate NSSF (based on gross salary per template)
+  // Excel Formula: =-IF(T<=8000,T*0.06,IF(T<=72000,480+(T-8000)*0.06,480+(72000-8000)*0.06))
+  const nssf = calculateNSSF(grossPay);
+
+  // Calculate SHIF (2.75% of gross salary)
+  // Excel Formula: =-T*0.0275
   const shifEmployee = calculateSHIF(grossPay);
 
-  // Calculate AHL (based on gross salary)
+  // Calculate AHL (1.5% of gross salary)
+  // Excel Formula: =-T*0.015
   const ahl = calculateAHL(grossPay);
 
-  // Calculate Taxable Pay (Gross - NSSF Employee)
-  const taxablePay = calculateTaxablePay(grossPay, nssf.employee);
+  // Calculate Taxable Pay (Gross - SHIF - AHL - NSSF)
+  // Excel Formula: =SUM(T:W) where deductions are negative
+  const taxablePay = calculateTaxablePay(grossPay, shifEmployee, ahl.employee, nssf.employee);
 
   // Calculate PAYE
+  // Excel Formula for Income Tax: =-(MIN(X,24000)*10%+...)
+  // Excel Formula for PAYE: =Y+Z (Income Tax + Personal Relief)
   const paye = calculatePAYE(taxablePay, insurancePremium);
 
-  // Calculate total other deductions
+  // Calculate Net Payable (before other deductions)
+  // Excel Formula: =X+AA (Taxable Pay + PAYE)
+  const netPayable = taxablePay - paye.paye;
+
+  // Calculate total other deductions (HELB, loans, etc.)
   const totalOtherDeductions = Object.values(otherDeductions).reduce(
     (sum, val) => sum + (val || 0),
     0
@@ -66,11 +107,15 @@ export function calculatePayroll(input: PayrollInput): PayrollCalculation {
     helb +
     totalOtherDeductions;
 
-  // Calculate Net Pay
-  const netPay = grossPay - totalDeductions;
+  // Calculate Final Net Pay
+  // Excel Formula: =SUM(AB:AD) where AB=Net Payable, AC=HELB(-), AD=Loan(-)
+  const netPay = netPayable - helb - totalOtherDeductions;
 
   // Calculate Employer Costs
+  // Excel Formula: NITA=50, NSSF Employer=-W, AHL Employer=-V
   const nita = NITA.MONTHLY_PER_EMPLOYEE;
+
+  // Excel Formula: =T+SUM(AG:AI) (Gross + NITA + NSSF Employer + AHL Employer)
   const costToCompany = grossPay + nssf.employer + ahl.employer + nita;
 
   return {
