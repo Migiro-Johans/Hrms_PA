@@ -39,14 +39,14 @@ export async function getCompanyUsers(companyId: string): Promise<UserWithEmploy
       role,
       employee_id,
       created_at,
-      employees(
+      employees:employee_id(
         id,
         first_name,
         last_name,
         staff_id,
-        job_title,
+        job_role,
         is_line_manager,
-        departments(id, name)
+        departments:department_id(id, name)
       )
     `)
     .eq('company_id', companyId)

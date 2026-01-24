@@ -29,7 +29,7 @@ export default async function DepartmentDetailPage({ params }: PageProps) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("company_id, role, employees(id, is_line_manager)")
+    .select("company_id, role, employees:employee_id(id, is_line_manager)")
     .eq("id", user.id)
     .single()
 

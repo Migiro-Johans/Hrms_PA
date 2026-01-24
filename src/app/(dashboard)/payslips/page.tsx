@@ -29,8 +29,8 @@ export default async function PayslipsPage() {
     .from("payslips")
     .select(`
       *,
-      employees(first_name, last_name, staff_id),
-      payroll_runs(month, year, status)
+      employees:employee_id(first_name, last_name, staff_id),
+      payroll_runs:payroll_run_id(month, year, status)
     `)
     .order("created_at", { ascending: false })
 

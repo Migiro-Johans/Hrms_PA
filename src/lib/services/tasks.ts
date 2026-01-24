@@ -113,7 +113,7 @@ export async function getAssignableEmployees(params: {
 
     let query = supabase
         .from('employees')
-        .select('id, first_name, last_name, departments(name)')
+        .select('id, first_name, last_name, departments:department_id(name)')
         .eq('company_id', params.companyId)
         .eq('status', 'active');
 

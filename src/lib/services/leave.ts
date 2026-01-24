@@ -30,7 +30,7 @@ export async function getLeaveBalances(employeeId: string, year: number): Promis
 
     const { data, error } = await supabase
         .from('leave_balances')
-        .select('*, leave_types(*)')
+        .select('*, leave_types:leave_type_id(*)')
         .eq('employee_id', employeeId)
         .eq('year', year);
 
@@ -109,7 +109,7 @@ export async function getLeaveRequests(params: {
 
     let query = supabase
         .from('leave_requests')
-        .select('*, leave_types(*), employees(first_name, last_name)')
+        .select('*, leave_types:leave_type_id(*), employees:employee_id(first_name, last_name)')
         .order('created_at', { ascending: false });
 
     if (params.employeeId) {

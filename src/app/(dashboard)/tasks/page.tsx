@@ -18,7 +18,7 @@ export default async function TasksPage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees(id, is_line_manager)')
+        .select('*, employees:employee_id(id, is_line_manager)')
         .eq('id', user.id)
         .single()
 

@@ -17,7 +17,7 @@ export default async function PerDiemPage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees(*)')
+        .select('*, employees:employee_id(*)')
         .eq('id', user.id)
         .single()
 

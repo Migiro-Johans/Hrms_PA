@@ -17,11 +17,11 @@ export default async function PayslipDetailPage({
     .from("payslips")
     .select(`
       *,
-      employees(
+      employees:employee_id(
         first_name, last_name, middle_name, staff_id, job_role,
         bank_name, account_number, kra_pin, nssf_number, nhif_number
       ),
-      payroll_runs(month, year, status, companies(name, address, email, phone))
+      payroll_runs:payroll_run_id(month, year, status, companies:company_id(name, address, email, phone))
     `)
     .eq("id", params.id)
     .single()

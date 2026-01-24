@@ -41,7 +41,7 @@ export default async function PayrollDetailPage({ params }: PageProps) {
       *,
       payslips(
         *,
-        employees(id, first_name, last_name, staff_id, email, department_id, departments(name))
+        employees:employee_id(id, first_name, last_name, staff_id, email, department_id, departments:department_id(name))
       )
     `)
     .eq("id", params.id)

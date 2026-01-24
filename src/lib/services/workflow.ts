@@ -288,7 +288,7 @@ export async function getApprovalStatus(
 
   const { data, error } = await supabase
     .from('approval_requests')
-    .select('*, approval_actions(*, employees(first_name, last_name))')
+    .select('*, approval_actions(*, employees:approver_id(first_name, last_name))')
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
     .order('created_at', { ascending: false })
@@ -414,7 +414,7 @@ export async function getApprovalHistory(
 
   const { data: actions, error: actionsError } = await supabase
     .from('approval_actions')
-    .select('*, employees(first_name, last_name)')
+    .select('*, employees:approver_id(first_name, last_name)')
     .eq('request_id', request.id)
     .order('created_at', { ascending: true });
 

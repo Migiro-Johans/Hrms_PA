@@ -13,7 +13,7 @@ export default async function NewLeavePage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees(*)')
+        .select('*, employees:employee_id(*)')
         .eq('id', user.id)
         .single()
 

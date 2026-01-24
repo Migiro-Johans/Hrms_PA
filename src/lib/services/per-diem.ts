@@ -92,7 +92,7 @@ export async function getPerDiemRequests(params: {
 
     let query = supabase
         .from('per_diem_requests')
-        .select('*, per_diem_rates(*), employees(first_name, last_name)')
+        .select('*, per_diem_rates:rate_id(*), employees:employee_id(first_name, last_name)')
         .order('created_at', { ascending: false });
 
     if (params.employeeId) {
