@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Calendar, CheckCircle2 } from "lucide-react"
 import { getPendingApprovalsAction } from "@/lib/actions/workflow"
-import { LeaveApprovalActions } from "@/components/leave/leave-approval-actions"
+import { ApprovalButton } from "@/components/approval-button"
+import type { UserRole } from "@/types"
 
 export default async function LeaveApprovalsPage() {
     const supabase = await createClient()
@@ -77,9 +78,12 @@ export default async function LeaveApprovalsPage() {
                                             "{(request.metadata as any)?.reason || 'No reason provided'}"
                                         </p>
                                     </div>
-                                    <LeaveApprovalActions
+                                    <ApprovalButton
                                         requestId={request.id}
                                         approverId={user.id}
+                                        entityType="leave"
+                                        approverRole={profile.employees?.is_line_manager ? "line_manager" : profile.role as UserRole}
+                                        variant="inline"
                                     />
                                 </div>
                             </CardContent>

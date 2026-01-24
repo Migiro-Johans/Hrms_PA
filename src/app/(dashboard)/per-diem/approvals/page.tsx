@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Plane, CheckCircle2, Calendar, MapPin } from "lucide-react"
 import { getPendingApprovalsAction } from "@/lib/actions/workflow"
-import { PerDiemApprovalActions } from "@/components/per-diem/per-diem-approval-actions"
+import { ApprovalButton } from "@/components/approval-button"
+import type { UserRole } from "@/types"
 
 export default async function PerDiemApprovalsPage() {
     const supabase = await createClient()
@@ -88,9 +89,12 @@ export default async function PerDiemApprovalsPage() {
                                             </span>
                                         </div>
                                     </div>
-                                    <PerDiemApprovalActions
+                                    <ApprovalButton
                                         requestId={request.id}
                                         approverId={user.id}
+                                        entityType="per_diem"
+                                        approverRole={profile.employees?.is_line_manager ? "line_manager" : profile.role as UserRole}
+                                        variant="inline"
                                     />
                                 </div>
                             </CardContent>

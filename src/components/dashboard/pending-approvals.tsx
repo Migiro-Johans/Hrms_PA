@@ -96,7 +96,7 @@ export function PendingApprovals({ user }: PendingApprovalsProps) {
             case "payroll": return `/payroll/${request.entity_id}/approve`
             case "leave": return `/leave/approvals`
             case "per_diem": return `/per-diem/approvals`
-            case "promotion": return `/promotions`
+            case "promotion": return `/promotions/approvals`
             default: return "#"
         }
     }
