@@ -45,6 +45,8 @@ import {
   Calculator,
   TrendingUp,
   User,
+  UserPlus,
+  Link as LinkIcon,
 } from "lucide-react"
 import {
   getCompanyUsersAction,
@@ -133,6 +135,16 @@ export default function UserManagementPage() {
   const [isLineManager, setIsLineManager] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Add user dialog
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [newUserEmail, setNewUserEmail] = useState("")
+  const [newUserPassword, setNewUserPassword] = useState("")
+  const [newUserRole, setNewUserRole] = useState<UserRole>("employee")
+  const [newUserEmployeeId, setNewUserEmployeeId] = useState("")
+  const [availableEmployees, setAvailableEmployees] = useState<any[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
+  const [addingUser, setAddingUser] = useState(false)
+
   useEffect(() => {
     loadData()
   }, [])
@@ -215,6 +227,89 @@ export default function UserManagementPage() {
     setNewRole(user.role)
     setIsLineManager(user.employee?.is_line_manager || false)
     setEditDialogOpen(true)
+  }
+
+  const openAddDialog = async () => {
+    setNewUserEmail("")
+    setNewUserPassword("")
+    setNewUserRole("employee")
+    setNewUserEmployeeId("")
+    setAddDialogOpen(true)
+
+    // Fetch employees without user accounts
+    setLoadingEmployees(true)
+    try {
+      const response = await fetch("/api/admin/users")
+      const data = await response.json()
+      if (data.employees) {
+        setAvailableEmployees(data.employees)
+      }
+    } catch (error) {
+      console.error("Failed to fetch employees:", error)
+    }
+    setLoadingEmployees(false)
+  }
+
+  const handleAddUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Email and password are required",
+      })
+      return
+    }
+
+    if (newUserPassword.length < 6) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Password must be at least 6 characters",
+      })
+      return
+    }
+
+    setAddingUser(true)
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newUserEmail,
+          password: newUserPassword,
+          role: newUserRole,
+          employee_id: newUserEmployeeId || null,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.error || "Failed to create user",
+        })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: `User ${newUserEmail} created successfully`,
+      })
+
+      setAddDialogOpen(false)
+      await loadData()
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create user",
+      })
+    }
+
+    setAddingUser(false)
   }
 
   const handleSave = async () => {
@@ -412,6 +507,10 @@ export default function UserManagementPage() {
                   <SelectItem value="line_manager">Line Managers</SelectItem>
                 </SelectContent>
               </Select>
+              <Button onClick={openAddDialog}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -544,6 +643,96 @@ export default function UserManagementPage() {
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account and assign their role
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newEmail">Email Address *</Label>
+              <Input
+                id="newEmail"
+                type="email"
+                placeholder="user@company.com"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Password *</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>System Role *</Label>
+              <Select value={newUserRole} onValueChange={(v) => setNewUserRole(v as UserRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ROLE_CONFIG).map(([role, config]) => (
+                    <SelectItem key={role} value={role}>
+                      <div className="flex items-center gap-2">
+                        <config.icon className="h-4 w-4" />
+                        {config.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {ROLE_CONFIG[newUserRole].description}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Link to Employee (Optional)
+              </Label>
+              <Select value={newUserEmployeeId} onValueChange={setNewUserEmployeeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingEmployees ? "Loading..." : "Select employee to link"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No employee link</SelectItem>
+                  {availableEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name} ({emp.staff_id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link this user to an existing employee record for payroll and HR features
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddUser} disabled={addingUser}>
+              {addingUser ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>
         </DialogContent>
