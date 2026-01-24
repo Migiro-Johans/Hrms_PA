@@ -26,7 +26,7 @@ export default async function DashboardPage() {
     .eq("company_id", profile?.company_id)
     .eq("status", "active")
 
-  const { data: latestPayroll } = await supabase
+  const { data: payrollRuns } = await supabase
     .from("payroll_runs")
     .select(`
       *,
@@ -36,7 +36,8 @@ export default async function DashboardPage() {
     .order("year", { ascending: false })
     .order("month", { ascending: false })
     .limit(1)
-    .single()
+
+  const latestPayroll = payrollRuns?.[0] || null
 
   const totalGross = latestPayroll?.payslips?.reduce(
     (sum: number, p: { gross_pay: number }) => sum + (p.gross_pay || 0),
