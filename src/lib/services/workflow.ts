@@ -318,7 +318,7 @@ export async function getPendingApprovalsForUser(
   const { data: requests, error } = await supabase
     .from('approval_requests')
     .select(
-      '*, workflow_definitions(*), employees!approval_requests_requester_id_fkey(first_name, last_name, manager_id, department_id)'
+      '*, workflow_definitions(*), requester:employees!approval_requests_requester_id_fkey(first_name, last_name, manager_id, department_id)'
     )
     .eq('company_id', companyId)
     .eq('status', 'pending')
@@ -342,8 +342,8 @@ export async function getPendingApprovalsForUser(
 
     // Check if this step is for line manager and user is the requester's manager
     if (currentStep.role === 'line_manager' && isLineManager && employeeId) {
-      const requester = request.employees as Employee;
-      return requester?.manager_id === employeeId;
+      const requesterData = request.requester as Employee;
+      return requesterData?.manager_id === employeeId;
     }
 
     // Admin can see all
@@ -439,7 +439,7 @@ export async function canUserApprove(
   const { data: request, error } = await supabase
     .from('approval_requests')
     .select(
-      '*, workflow_definitions(*), employees!approval_requests_requester_id_fkey(manager_id)'
+      '*, workflow_definitions(*), requester:employees!approval_requests_requester_id_fkey(manager_id)'
     )
     .eq('id', requestId)
     .single();
@@ -467,8 +467,8 @@ export async function canUserApprove(
 
   // Check line manager
   if (currentStep.role === 'line_manager' && isLineManager && employeeId) {
-    const requester = request.employees as Employee;
-    return requester?.manager_id === employeeId;
+    const requesterData = request.requester as Employee;
+    return requesterData?.manager_id === employeeId;
   }
 
   return false;
