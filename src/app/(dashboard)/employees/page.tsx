@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 import { Plus, Upload, Eye } from "lucide-react"
 
 export default async function EmployeesPage() {
@@ -18,24 +18,45 @@ export default async function EmployeesPage() {
 
   // Get user's company
   const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Please log in to view employees.</p>
+      </div>
+    )
+  }
+
   const { data: profile } = await supabase
     .from("users")
     .select("company_id")
-    .eq("id", user?.id)
+    .eq("id", user.id)
     .single()
 
+  if (!profile?.company_id) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">No company associated with your account.</p>
+      </div>
+    )
+  }
+
   // Get employees with salary structures
-  // Note: Using explicit foreign key hint for departments due to multiple relationships
-  const { data: employees } = await supabase
+  // Note: Using explicit foreign key hints due to multiple relationships on employees table
+  const { data: employees, error } = await supabase
     .from("employees")
     .select(`
       *,
-      departments:department_id(name),
-      pay_grades:pay_grade_id(pay_group, pay_grade),
+      departments:departments!employees_department_id_fkey(name),
+      pay_grades:pay_grades!employees_pay_grade_id_fkey(pay_group, pay_grade),
       salary_structures(basic_salary, car_allowance, meal_allowance, telephone_allowance)
     `)
-    .eq("company_id", profile?.company_id)
+    .eq("company_id", profile.company_id)
     .order("staff_id")
+
+  if (error) {
+    console.error("Error fetching employees:", error)
+  }
 
   return (
     <div className="space-y-6">
