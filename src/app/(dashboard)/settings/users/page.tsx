@@ -708,12 +708,12 @@ export default function UserManagementPage() {
                 <LinkIcon className="h-4 w-4" />
                 Link to Employee (Optional)
               </Label>
-              <Select value={newUserEmployeeId} onValueChange={setNewUserEmployeeId}>
+              <Select value={newUserEmployeeId || "none"} onValueChange={(v) => setNewUserEmployeeId(v === "none" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder={loadingEmployees ? "Loading..." : "Select employee to link"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No employee link</SelectItem>
+                  <SelectItem value="none">No employee link</SelectItem>
                   {availableEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.first_name} {emp.last_name} ({emp.staff_id})
