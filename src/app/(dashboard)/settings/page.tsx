@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Users, Shield, Building2, Bell, Database } from "lucide-react"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Users, Shield, Building2, Bell, Database, UserPlus } from "lucide-react"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -59,6 +58,13 @@ export default async function SettingsPage() {
       icon: Database,
       href: "/settings/data",
       color: "bg-purple-50 text-purple-600",
+    },
+    {
+      title: "Test Users",
+      description: "Create test users for all roles",
+      icon: UserPlus,
+      href: "/settings/test-users",
+      color: "bg-orange-50 text-orange-600",
     },
   ]
 
