@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Shield, Building2, Bell, Database, UserPlus } from "lucide-react"
+import { Users, Shield, Building2, Bell, Database, UserPlus, Layers } from "lucide-react"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -32,11 +32,18 @@ export default async function SettingsPage() {
       color: "bg-blue-50 text-blue-600",
     },
     {
-      title: "Company Settings",
-      description: "Update company information and preferences",
+      title: "Company Management",
+      description: "Create and manage companies",
       icon: Building2,
-      href: "/settings/company",
+      href: "/settings/companies",
       color: "bg-green-50 text-green-600",
+    },
+    {
+      title: "Department Management",
+      description: "Create and manage departments",
+      icon: Layers,
+      href: "/settings/departments",
+      color: "bg-teal-50 text-teal-600",
     },
     {
       title: "Security",

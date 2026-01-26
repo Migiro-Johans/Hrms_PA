@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -14,12 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { PayrollStatusBadge } from "@/components/payroll-status-badge"
+import { Textarea } from "@/components/ui/textarea"
 import { ApprovalTimeline } from "@/components/approval-timeline"
-import { ApprovalActions } from "@/components/approval-actions"
 import { useToast } from "@/components/ui/use-toast"
 import { formatCurrency, getMonthName } from "@/lib/utils"
-import { ArrowLeft, AlertTriangle } from "lucide-react"
+import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import type { PayrollRun, UserRole } from "@/types"
 
 interface PageProps {
@@ -34,9 +33,13 @@ export default function PayrollApprovePage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [payrollRun, setPayrollRun] = useState<PayrollRun | null>(null)
   const [userRole, setUserRole] = useState<UserRole>("employee")
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [approvalRequest, setApprovalRequest] = useState<any>(null)
+  const [currentUserId, setCurrentUserId] = useState<string>("")
   const [totals, setTotals] = useState({ gross: 0, net: 0, paye: 0, nssf: 0, shif: 0, ahl: 0 })
+
+  // Approval state
+  const [isRejecting, setIsRejecting] = useState(false)
+  const [comments, setComments] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -47,7 +50,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
     // Get user and profile
     const { data: { user } } = await supabase.auth.getUser()
-    setCurrentUser(user)
+    setCurrentUserId(user?.id || "")
 
     const { data: profile } = await supabase
       .from("users")
@@ -83,11 +86,6 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
     setPayrollRun(data as PayrollRun)
 
-    // Get workflow approval status
-    const { getApprovalStatusAction } = await import("@/lib/actions/workflow")
-    const statusResult = await getApprovalStatusAction("payroll", params.id)
-    setApprovalRequest(statusResult.data)
-
     // Calculate totals
     const calculatedTotals = data.payslips?.reduce(
       (acc: typeof totals, p: { gross_pay?: number; net_pay?: number; paye?: number; nssf_employee?: number; shif_employee?: number; ahl_employee?: number }) => ({
@@ -105,6 +103,84 @@ export default function PayrollApprovePage({ params }: PageProps) {
     setLoading(false)
   }
 
+  const handleApproval = async (action: "approve" | "reject") => {
+    if (action === "reject" && !comments.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Comment required",
+        description: "Please provide a reason for rejection.",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const currentStatus = payrollRun?.status
+      let newStatus = ""
+      const updateData: Record<string, unknown> = {}
+
+      if (action === "approve") {
+        // HR approves -> move to management pending
+        if (currentStatus === "hr_pending") {
+          newStatus = "mgmt_pending"
+          updateData.hr_approved_by = currentUserId
+          updateData.hr_approved_at = new Date().toISOString()
+        }
+        // Management approves -> approved
+        else if (currentStatus === "mgmt_pending") {
+          newStatus = "approved"
+          updateData.management_approved_by = currentUserId
+          updateData.management_approved_at = new Date().toISOString()
+        }
+      } else {
+        // Rejection
+        if (currentStatus === "hr_pending") {
+          newStatus = "hr_rejected"
+        } else if (currentStatus === "mgmt_pending") {
+          newStatus = "mgmt_rejected"
+        }
+        updateData.rejection_comments = comments.trim()
+      }
+
+      if (!newStatus) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Invalid payroll status for this action.",
+        })
+        return
+      }
+
+      const { error } = await supabase
+        .from("payroll_runs")
+        .update({
+          status: newStatus,
+          ...updateData,
+        })
+        .eq("id", params.id)
+
+      if (error) throw error
+
+      toast({
+        title: action === "approve" ? "Payroll Approved" : "Payroll Rejected",
+        description: action === "approve"
+          ? "The payroll has been approved and moved to the next stage."
+          : "The payroll has been rejected. Finance will be notified.",
+      })
+
+      router.push("/payroll")
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process approval",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -119,6 +195,19 @@ export default function PayrollApprovePage({ params }: PageProps) {
   if (!payrollRun) return null
 
   const isRejected = ["hr_rejected", "mgmt_rejected"].includes(payrollRun.status)
+
+  // Determine if user can approve based on role and status
+  // Admin, HR, and Management can all approve at any pending stage
+  const isPendingApproval = ["hr_pending", "mgmt_pending"].includes(payrollRun.status)
+  const hasApprovalRole = ["admin", "hr", "management"].includes(userRole)
+  const canApprove = isPendingApproval && hasApprovalRole
+
+  // Get the approval stage label
+  const getApprovalStage = () => {
+    if (payrollRun.status === "hr_pending") return "HR Approval"
+    if (payrollRun.status === "mgmt_pending") return "Management Approval"
+    return "Approval"
+  }
 
   return (
     <div className="space-y-6">
@@ -213,19 +302,100 @@ export default function PayrollApprovePage({ params }: PageProps) {
             </CardContent>
           </Card>
 
-          {approvalRequest && approvalRequest.status === "pending" && (
-            <ApprovalActions
-              requestId={approvalRequest.id}
-              approverId={currentUser?.id || ""}
-              entityName="Payroll"
-              onSuccess={() => {
-                toast({
-                  title: "Action Recorded",
-                  description: "Your decision has been saved and the payroll status updated.",
-                })
-                router.push("/payroll")
-              }}
-            />
+          {/* Direct Approval Actions */}
+          {canApprove && (
+            <Card className="border-2 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-lg">{getApprovalStage()}</CardTitle>
+                <CardDescription>
+                  Review and provide your decision for this payroll.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="comments" className="text-sm font-medium">
+                    Comments {isRejecting && <span className="text-red-500">*</span>}
+                  </label>
+                  <Textarea
+                    id="comments"
+                    placeholder={
+                      isRejecting
+                        ? "Explain the reason for rejection..."
+                        : "Add any additional feedback (optional)..."
+                    }
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
+                    className="min-h-[100px]"
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-end gap-3">
+                {!isRejecting ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => setIsRejecting(true)}
+                      disabled={isSubmitting}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Reject
+                    </Button>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleApproval("approve")}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      )}
+                      Approve
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsRejecting(false)}
+                      disabled={isSubmitting}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleApproval("reject")}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <XCircle className="mr-2 h-4 w-4" />
+                      )}
+                      Confirm Rejection
+                    </Button>
+                  </>
+                )}
+              </CardFooter>
+            </Card>
+          )}
+
+          {/* Show message when user cannot approve */}
+          {!canApprove && !isRejected && (
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  {payrollRun.status === "approved" || payrollRun.status === "paid"
+                    ? "This payroll has already been approved."
+                    : payrollRun.status === "hr_pending"
+                      ? "Awaiting HR approval."
+                      : payrollRun.status === "mgmt_pending"
+                        ? "Awaiting Management approval."
+                        : "No approval actions available."}
+                </p>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>

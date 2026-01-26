@@ -1,4 +1,7 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -8,40 +11,111 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Download, Users, Building2, UserCheck, UserX, Calendar } from "lucide-react"
+import { Download, Users, UserCheck, UserX, Calendar, Filter } from "lucide-react"
 
-export default async function EmployeeReportsPage() {
-  const supabase = await createClient()
+interface Employee {
+  id: string
+  staff_id: string
+  first_name: string
+  last_name: string
+  middle_name?: string
+  email?: string
+  phone?: string
+  gender?: string
+  status: string
+  employment_date: string
+  termination_date?: string
+  job_role?: string
+  department_id?: string
+  departments?: { id: string; name: string } | null
+}
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase
-    .from("users")
-    .select("company_id, role")
-    .eq("id", user?.id)
-    .single()
+interface Department {
+  id: string
+  name: string
+}
 
-  // Get all employees with department info
-  const { data: employees } = await supabase
-    .from("employees")
-    .select(`
-      id, staff_id, first_name, last_name, gender, status,
-      employment_date, termination_date, job_title,
-      department:departments(id, name)
-    `)
-    .eq("company_id", profile?.company_id)
-    .order("first_name")
+export default function EmployeeReportsPage() {
+  const supabase = createClient()
 
-  // Get departments
-  const { data: departments } = await supabase
-    .from("departments")
-    .select("id, name")
-    .eq("company_id", profile?.company_id)
-    .order("name")
+  const [loading, setLoading] = useState(true)
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
 
-  // Calculate statistics
-  const allEmployees = employees || []
+  // Filters
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all")
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = await supabase
+      .from("users")
+      .select("company_id, role")
+      .eq("id", user?.id)
+      .single()
+
+    if (!profile?.company_id) {
+      setLoading(false)
+      return
+    }
+
+    // Get all employees with department info
+    const { data: empData, error: empError } = await supabase
+      .from("employees")
+      .select(`
+        id, staff_id, first_name, last_name, middle_name, email, phone,
+        gender, status, employment_date, termination_date, job_role, department_id,
+        departments:department_id(id, name)
+      `)
+      .eq("company_id", profile.company_id)
+      .order("first_name")
+
+    if (empError) {
+      console.error("Error loading employees:", empError)
+    }
+
+    // Get departments
+    const { data: deptData } = await supabase
+      .from("departments")
+      .select("id, name")
+      .eq("company_id", profile.company_id)
+      .order("name")
+
+    // Transform the data to handle Supabase's array return for foreign key joins
+    const transformedEmployees = (empData || []).map((emp: any) => ({
+      ...emp,
+      departments: Array.isArray(emp.departments) ? emp.departments[0] : emp.departments
+    })) as Employee[]
+
+    setEmployees(transformedEmployees)
+    setDepartments(deptData || [])
+    setLoading(false)
+  }
+
+  // Apply filters
+  const filteredEmployees = employees.filter(emp => {
+    if (statusFilter !== "all" && emp.status !== statusFilter) return false
+    if (departmentFilter !== "all" && emp.department_id !== departmentFilter) return false
+    return true
+  })
+
+  // Calculate statistics based on filtered data
+  const allEmployees = filteredEmployees
   const activeEmployees = allEmployees.filter(e => e.status === 'active')
   const terminatedEmployees = allEmployees.filter(e => e.status === 'terminated')
   const onLeaveEmployees = allEmployees.filter(e => e.status === 'on_leave')
@@ -52,10 +126,10 @@ export default async function EmployeeReportsPage() {
   const femaleCount = activeEmployees.filter(e => e.gender?.toLowerCase() === 'female').length
   const otherGenderCount = activeEmployees.length - maleCount - femaleCount
 
-  // Department breakdown
-  const departmentCounts = (departments || []).map(dept => ({
+  // Department breakdown (from all employees, not filtered)
+  const departmentCounts = departments.map(dept => ({
     ...dept,
-    count: activeEmployees.filter(e => (e.department as any)?.id === dept.id).length
+    count: employees.filter(e => e.status === 'active' && e.department_id === dept.id).length
   })).sort((a, b) => b.count - a.count)
 
   // Tenure breakdown
@@ -81,14 +155,81 @@ export default async function EmployeeReportsPage() {
   // Recent hires (last 90 days)
   const ninetyDaysAgo = new Date()
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-  const recentHires = activeEmployees.filter(e =>
-    e.employment_date && new Date(e.employment_date) >= ninetyDaysAgo
+  const recentHires = employees.filter(e =>
+    e.status === 'active' && e.employment_date && new Date(e.employment_date) >= ninetyDaysAgo
   )
 
   // Recent terminations (last 90 days)
-  const recentTerminations = terminatedEmployees.filter(e =>
-    e.termination_date && new Date(e.termination_date) >= ninetyDaysAgo
+  const recentTerminations = employees.filter(e =>
+    e.status === 'terminated' && e.termination_date && new Date(e.termination_date) >= ninetyDaysAgo
   )
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = [
+      "Staff ID",
+      "First Name",
+      "Middle Name",
+      "Last Name",
+      "Email",
+      "Phone",
+      "Gender",
+      "Job Role",
+      "Department",
+      "Status",
+      "Employment Date",
+      "Termination Date"
+    ]
+
+    const rows = filteredEmployees.map(emp => [
+      emp.staff_id || "",
+      emp.first_name || "",
+      emp.middle_name || "",
+      emp.last_name || "",
+      emp.email || "",
+      emp.phone || "",
+      emp.gender || "",
+      emp.job_role || "",
+      emp.departments?.name || "",
+      emp.status || "",
+      emp.employment_date ? new Date(emp.employment_date).toLocaleDateString() : "",
+      emp.termination_date ? new Date(emp.termination_date).toLocaleDateString() : ""
+    ])
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `employee_report_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'active': return 'default'
+      case 'on_leave': return 'secondary'
+      case 'terminated': return 'destructive'
+      case 'suspended': return 'outline'
+      default: return 'secondary'
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading report...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -99,11 +240,68 @@ export default async function EmployeeReportsPage() {
             Employee headcount, demographics, and workforce analytics
           </p>
         </div>
-        <Button variant="outline">
+        <Button onClick={exportToCSV}>
           <Download className="h-4 w-4 mr-2" />
-          Export Report
+          Export CSV
         </Button>
       </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4">
+            <div className="w-48">
+              <label className="text-sm font-medium mb-1 block">Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="on_leave">On Leave</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="terminated">Terminated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <label className="text-sm font-medium mb-1 block">Department</label>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map(dept => (
+                    <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(statusFilter !== "all" || departmentFilter !== "all") && (
+              <div className="flex items-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter("all")
+                    setDepartmentFilter("all")
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Headcount Summary */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -114,7 +312,9 @@ export default async function EmployeeReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{allEmployees.length}</div>
-            <p className="text-xs text-muted-foreground">All time records</p>
+            <p className="text-xs text-muted-foreground">
+              {statusFilter !== "all" || departmentFilter !== "all" ? "Filtered results" : "All records"}
+            </p>
           </CardContent>
         </Card>
 
@@ -202,6 +402,9 @@ export default async function EmployeeReportsPage() {
                   </div>
                 </div>
               )}
+              {activeEmployees.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No active employees</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -222,7 +425,7 @@ export default async function EmployeeReportsPage() {
                       <div className="w-32 bg-muted rounded-full h-2">
                         <div
                           className="bg-primary h-2 rounded-full"
-                          style={{ width: `${activeEmployees.length ? (dept.count / activeEmployees.length) * 100 : 0}%` }}
+                          style={{ width: `${employees.filter(e => e.status === 'active').length ? (dept.count / employees.filter(e => e.status === 'active').length) * 100 : 0}%` }}
                         />
                       </div>
                       <span className="text-sm font-medium w-12 text-right">{dept.count}</span>
@@ -230,7 +433,7 @@ export default async function EmployeeReportsPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No departments configured</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No departments configured</p>
               )}
             </div>
           </CardContent>
@@ -293,7 +496,7 @@ export default async function EmployeeReportsPage() {
                       <TableCell className="font-medium">
                         {emp.first_name} {emp.last_name}
                       </TableCell>
-                      <TableCell>{(emp.department as any)?.name || '-'}</TableCell>
+                      <TableCell>{emp.departments?.name || '-'}</TableCell>
                       <TableCell>{new Date(emp.employment_date).toLocaleDateString()}</TableCell>
                     </TableRow>
                   ))}
@@ -327,7 +530,7 @@ export default async function EmployeeReportsPage() {
                       <TableCell className="font-medium">
                         {emp.first_name} {emp.last_name}
                       </TableCell>
-                      <TableCell>{(emp.department as any)?.name || '-'}</TableCell>
+                      <TableCell>{emp.departments?.name || '-'}</TableCell>
                       <TableCell>{emp.termination_date ? new Date(emp.termination_date).toLocaleDateString() : '-'}</TableCell>
                     </TableRow>
                   ))}
@@ -344,48 +547,66 @@ export default async function EmployeeReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Employee Directory</CardTitle>
-          <CardDescription>Complete list of all employees</CardDescription>
+          <CardDescription>
+            {filteredEmployees.length} employee{filteredEmployees.length !== 1 ? 's' : ''}
+            {(statusFilter !== "all" || departmentFilter !== "all") && " (filtered)"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Staff ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Job Title</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allEmployees.map(emp => (
-                <TableRow key={emp.id}>
-                  <TableCell className="font-medium">{emp.staff_id}</TableCell>
-                  <TableCell>{emp.first_name} {emp.last_name}</TableCell>
-                  <TableCell>{emp.job_title || '-'}</TableCell>
-                  <TableCell>{(emp.department as any)?.name || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      emp.status === 'active' ? 'success' :
-                      emp.status === 'on_leave' ? 'warning' :
-                      emp.status === 'terminated' ? 'destructive' : 'secondary'
-                    }>
-                      {emp.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{new Date(emp.employment_date).toLocaleDateString()}</TableCell>
-                </TableRow>
-              ))}
-              {allEmployees.length === 0 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <p className="text-muted-foreground">No employees found</p>
-                  </TableCell>
+                  <TableHead>Staff ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Job Role</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees.map(emp => (
+                  <TableRow key={emp.id}>
+                    <TableCell className="font-medium">{emp.staff_id}</TableCell>
+                    <TableCell>
+                      {emp.first_name} {emp.middle_name} {emp.last_name}
+                    </TableCell>
+                    <TableCell>{emp.email || '-'}</TableCell>
+                    <TableCell>{emp.phone || '-'}</TableCell>
+                    <TableCell>{emp.job_role || '-'}</TableCell>
+                    <TableCell>{emp.departments?.name || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(emp.status)} className={
+                        emp.status === 'active' ? 'bg-green-100 text-green-700' :
+                        emp.status === 'on_leave' ? 'bg-yellow-100 text-yellow-700' :
+                        emp.status === 'terminated' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-700'
+                      }>
+                        {emp.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {emp.employment_date ? new Date(emp.employment_date).toLocaleDateString() : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredEmployees.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        {employees.length === 0
+                          ? "No employees found"
+                          : "No employees match the selected filters"}
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
