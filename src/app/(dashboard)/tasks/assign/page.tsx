@@ -41,6 +41,7 @@ export default function AssignTaskPage() {
     employeeId: string
     userRole: UserRole
     isLineManager: boolean
+    departmentId?: string
   } | null>(null)
 
   // Form state
@@ -64,7 +65,7 @@ export default function AssignTaskPage() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("company_id, role, employees:employee_id(id, is_line_manager)")
+      .select("company_id, role, employees:employee_id(id, is_line_manager, department_id)")
       .eq("id", user.id)
       .single()
 
@@ -80,6 +81,7 @@ export default function AssignTaskPage() {
     const userRole = (profile.role || "employee") as UserRole
     const isLineManager = (profile.employees as any)?.is_line_manager || false
     const employeeId = (profile.employees as any)?.id
+    const departmentId = (profile.employees as any)?.department_id
 
     // Check if user can assign tasks
     if (!["admin", "hr"].includes(userRole) && !isLineManager) {
@@ -97,6 +99,7 @@ export default function AssignTaskPage() {
       employeeId,
       userRole,
       isLineManager,
+      departmentId,
     })
 
     // Load assignable employees
@@ -107,6 +110,7 @@ export default function AssignTaskPage() {
         userRole,
         isLineManager,
         employeeId,
+        departmentId,
       })
       setEmployees(employeeList)
     } catch (error) {

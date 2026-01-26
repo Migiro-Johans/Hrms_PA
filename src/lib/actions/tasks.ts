@@ -54,6 +54,7 @@ export async function getAssignableEmployeesAction(params: {
     userRole: string;
     isLineManager: boolean;
     employeeId?: string;
+    departmentId?: string;
 }) {
     try {
         return await taskService.getAssignableEmployees(params);

@@ -2,11 +2,12 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckSquare, Clock, AlertCircle, Plus } from "lucide-react"
+import { CheckSquare, Clock, AlertCircle, Users } from "lucide-react"
 import { getTasksAction } from "@/lib/actions/tasks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TaskStatusButton } from "@/components/tasks/task-status-button"
+import { CreateOwnTaskDialog } from "@/components/tasks/create-own-task-dialog"
 
 export default async function TasksPage() {
     const supabase = await createClient()
@@ -18,7 +19,7 @@ export default async function TasksPage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees:employee_id(id, is_line_manager)')
+        .select('*, employees:employee_id(id, is_line_manager, department_id)')
         .eq('id', user.id)
         .single()
 
@@ -39,14 +40,24 @@ export default async function TasksPage() {
                     <h2 className="text-2xl font-bold tracking-tight">My Tasks</h2>
                     <p className="text-muted-foreground">Manage your assigned tasks and action items</p>
                 </div>
-                {canAssignTasks && (
-                    <Link href="/tasks/assign">
-                        <Button>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Assign Task
-                        </Button>
-                    </Link>
-                )}
+                <div className="flex gap-2">
+                    {/* Everyone can create their own tasks */}
+                    {employeeId && (
+                        <CreateOwnTaskDialog
+                            employeeId={employeeId}
+                            companyId={profile?.company_id || ""}
+                        />
+                    )}
+                    {/* Line managers, HR, and admins can assign tasks to others */}
+                    {canAssignTasks && (
+                        <Link href="/tasks/assign">
+                            <Button variant="outline">
+                                <Users className="h-4 w-4 mr-2" />
+                                Assign to Others
+                            </Button>
+                        </Link>
+                    )}
+                </div>
             </div>
 
             {tasks.length === 0 ? (

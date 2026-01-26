@@ -90,6 +90,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Department is required - every employee must belong to a department
+    if (!department_id) {
+      return NextResponse.json(
+        { error: "Department is required. Every employee must be assigned to a department." },
+        { status: 400 }
+      )
+    }
+
     // If creating user account, email is required
     if (create_user_account && !email) {
       return NextResponse.json(

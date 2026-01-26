@@ -251,6 +251,15 @@ export default function UserManagementPage() {
   }
 
   const handleAddUser = async () => {
+    if (!newUserEmployeeId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select an employee. All users must be linked to an employee record.",
+      })
+      return
+    }
+
     if (!newUserEmail || !newUserPassword) {
       toast({
         variant: "destructive",
@@ -279,7 +288,7 @@ export default function UserManagementPage() {
           email: newUserEmail,
           password: newUserPassword,
           role: newUserRole,
-          employee_id: newUserEmployeeId || null,
+          employee_id: newUserEmployeeId,
         }),
       })
 
@@ -652,13 +661,48 @@ export default function UserManagementPage() {
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>Create User Account for Employee</DialogTitle>
             <DialogDescription>
-              Create a new user account and assign their role
+              Select an employee to create their user account. All users must be linked to an employee record.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <LinkIcon className="h-4 w-4" />
+                Select Employee *
+              </Label>
+              <Select value={newUserEmployeeId || ""} onValueChange={(v) => {
+                setNewUserEmployeeId(v)
+                // Auto-fill email from employee if available
+                const selectedEmp = availableEmployees.find((e: any) => e.id === v)
+                if (selectedEmp?.email) {
+                  setNewUserEmail(selectedEmp.email)
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingEmployees ? "Loading employees..." : "Select an employee"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableEmployees.length === 0 && !loadingEmployees ? (
+                    <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                      No employees without user accounts
+                    </div>
+                  ) : (
+                    availableEmployees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} ({emp.staff_id}) {emp.email ? `- ${emp.email}` : ""}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Only employees without existing user accounts are shown
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="newEmail">Email Address *</Label>
               <Input
@@ -668,6 +712,9 @@ export default function UserManagementPage() {
                 value={newUserEmail}
                 onChange={(e) => setNewUserEmail(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                This will be used as the login email
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -702,37 +749,14 @@ export default function UserManagementPage() {
                 {ROLE_CONFIG[newUserRole].description}
               </p>
             </div>
-
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
-                Link to Employee (Optional)
-              </Label>
-              <Select value={newUserEmployeeId || "none"} onValueChange={(v) => setNewUserEmployeeId(v === "none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingEmployees ? "Loading..." : "Select employee to link"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No employee link</SelectItem>
-                  {availableEmployees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.first_name} {emp.last_name} ({emp.staff_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Link this user to an existing employee record for payroll and HR features
-              </p>
-            </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddUser} disabled={addingUser}>
-              {addingUser ? "Creating..." : "Create User"}
+            <Button onClick={handleAddUser} disabled={addingUser || !newUserEmployeeId}>
+              {addingUser ? "Creating..." : "Create User Account"}
             </Button>
           </DialogFooter>
         </DialogContent>

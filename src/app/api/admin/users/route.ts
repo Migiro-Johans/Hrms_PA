@@ -34,6 +34,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Enforce that every user must be linked to an employee
+    if (!employee_id) {
+      return NextResponse.json(
+        { error: "Employee selection is required. All users must be linked to an employee record." },
+        { status: 400 }
+      )
+    }
+
     // Use service role client to create users
     const supabaseAdmin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

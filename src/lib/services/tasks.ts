@@ -99,7 +99,7 @@ export async function createTask(params: {
 
 /**
  * Get employees that a user can assign tasks to
- * - Line managers can assign to their direct reports
+ * - Line managers can assign to their department members
  * - HR and Admin can assign to anyone in the company
  */
 export async function getAssignableEmployees(params: {
@@ -108,6 +108,7 @@ export async function getAssignableEmployees(params: {
     userRole: string;
     isLineManager: boolean;
     employeeId?: string;
+    departmentId?: string;
 }): Promise<{ id: string; first_name: string; last_name: string; department?: { name: string } }[]> {
     const supabase = await createClient();
 
@@ -117,9 +118,9 @@ export async function getAssignableEmployees(params: {
         .eq('company_id', params.companyId)
         .eq('status', 'active');
 
-    // If line manager, only get direct reports
-    if (params.isLineManager && !['admin', 'hr'].includes(params.userRole)) {
-        query = query.eq('manager_id', params.employeeId);
+    // If line manager, get employees in their department
+    if (params.isLineManager && !['admin', 'hr'].includes(params.userRole) && params.departmentId) {
+        query = query.eq('department_id', params.departmentId);
     }
 
     const { data, error } = await query.order('first_name');

@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,7 +24,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Copy, Check, User, AlertCircle } from "lucide-react"
+import { Copy, Check, User, AlertCircle, Building2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface UserCredentials {
@@ -32,10 +33,19 @@ interface UserCredentials {
   user_id: string
 }
 
+interface Department {
+  id: string
+  name: string
+}
+
 export default function NewEmployeePage() {
   const router = useRouter()
   const { toast } = useToast()
+  const supabase = createClient()
+
   const [loading, setLoading] = useState(false)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loadingDepartments, setLoadingDepartments] = useState(true)
   const [createUserAccount, setCreateUserAccount] = useState(true)
   const [showCredentialsDialog, setShowCredentialsDialog] = useState(false)
   const [userCredentials, setUserCredentials] = useState<UserCredentials | null>(null)
@@ -50,6 +60,7 @@ export default function NewEmployeePage() {
     email: "",
     phone: "",
     employment_date: "",
+    department_id: "",
     job_role: "",
     kra_pin: "",
     nssf_number: "",
@@ -62,6 +73,34 @@ export default function NewEmployeePage() {
     telephone_allowance: "",
     housing_allowance: "",
   })
+
+  useEffect(() => {
+    loadDepartments()
+  }, [])
+
+  const loadDepartments = async () => {
+    setLoadingDepartments(true)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (user) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("company_id")
+        .eq("id", user.id)
+        .single()
+
+      if (profile?.company_id) {
+        const { data: deptData } = await supabase
+          .from("departments")
+          .select("id, name")
+          .eq("company_id", profile.company_id)
+          .order("name")
+
+        setDepartments(deptData || [])
+      }
+    }
+    setLoadingDepartments(false)
+  }
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -82,6 +121,17 @@ export default function NewEmployeePage() {
     setLoading(true)
 
     try {
+      // Validate department is selected
+      if (!formData.department_id) {
+        toast({
+          variant: "destructive",
+          title: "Department Required",
+          description: "Please select a department for this employee",
+        })
+        setLoading(false)
+        return
+      }
+
       // Validate email is provided if creating user account
       if (createUserAccount && !formData.email) {
         toast({
@@ -263,14 +313,39 @@ export default function NewEmployeePage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="job_role">Job Role</Label>
-                  <Input
-                    id="job_role"
-                    placeholder="e.g., IT Assistant"
-                    value={formData.job_role}
-                    onChange={(e) => handleChange("job_role", e.target.value)}
-                  />
+                  <Label htmlFor="department_id">Department *</Label>
+                  <Select
+                    value={formData.department_id}
+                    onValueChange={(value) => handleChange("department_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingDepartments ? "Loading..." : "Select department"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.length === 0 && !loadingDepartments ? (
+                        <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                          No departments found. Create departments first.
+                        </div>
+                      ) : (
+                        departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="job_role">Job Role</Label>
+                <Input
+                  id="job_role"
+                  placeholder="e.g., IT Assistant"
+                  value={formData.job_role}
+                  onChange={(e) => handleChange("job_role", e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
