@@ -10,12 +10,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table"
 import { PayrollStatusBadge } from "@/components/payroll-status-badge"
 import { ApprovalTimeline } from "@/components/approval-timeline"
 import { formatCurrency, getMonthName } from "@/lib/utils"
-import { ArrowLeft, Download, CheckCircle, DollarSign, XCircle } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle, DollarSign, XCircle, Building2 } from "lucide-react"
 import type { UserRole, PayrollStatus, PayrollRun } from "@/types"
+import { PayrollCsvExport } from "@/components/payroll/payroll-csv-export"
 
 interface PageProps {
   params: { id: string }
@@ -24,24 +26,30 @@ interface PageProps {
 export default async function PayrollDetailPage({ params }: PageProps) {
   const supabase = await createClient()
 
-  // Get user's role
+  // Get user's role and company info
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from("users")
-    .select("company_id, role")
+    .select("company_id, role, companies:company_id(name)")
     .eq("id", user?.id)
     .single()
 
   const userRole = (profile?.role || "employee") as UserRole
+  const companyName = (profile?.companies as any)?.name || ""
 
-  // Get payroll run with payslips
+  // Get payroll run with full payslip data
   const { data: payrollRun, error } = await supabase
     .from("payroll_runs")
     .select(`
       *,
       payslips(
         *,
-        employees:employee_id(id, first_name, last_name, staff_id, email, department_id, departments:department_id(name))
+        employees:employee_id(
+          id, first_name, last_name, staff_id, email,
+          kra_pin, nssf_number, nhif_number,
+          bank_name, account_number,
+          department_id, departments:department_id(name)
+        )
       )
     `)
     .eq("id", params.id)
@@ -52,18 +60,68 @@ export default async function PayrollDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  // Calculate totals
+  // Calculate comprehensive totals
   const totals = payrollRun.payslips?.reduce(
-    (acc: { gross: number; net: number; paye: number; nssf: number; shif: number; ahl: number }, p: { gross_pay: number; net_pay: number; paye: number; nssf_employee: number; shif_employee: number; ahl_employee: number }) => ({
-      gross: acc.gross + (p.gross_pay || 0),
-      net: acc.net + (p.net_pay || 0),
+    (acc: any, p: any) => ({
+      // Earnings
+      basic_salary: acc.basic_salary + (p.basic_salary || 0),
+      car_allowance: acc.car_allowance + (p.car_allowance || 0),
+      meal_allowance: acc.meal_allowance + (p.meal_allowance || 0),
+      telephone_allowance: acc.telephone_allowance + (p.telephone_allowance || 0),
+      housing_allowance: acc.housing_allowance + (p.housing_allowance || 0),
+      gross_pay: acc.gross_pay + (p.gross_pay || 0),
+      // Employee Deductions
+      nssf_employee: acc.nssf_employee + (p.nssf_employee || 0),
+      shif_employee: acc.shif_employee + (p.shif_employee || 0),
+      ahl_employee: acc.ahl_employee + (p.ahl_employee || 0),
       paye: acc.paye + (p.paye || 0),
-      nssf: acc.nssf + (p.nssf_employee || 0),
-      shif: acc.shif + (p.shif_employee || 0),
-      ahl: acc.ahl + (p.ahl_employee || 0),
+      helb: acc.helb + (p.helb || 0),
+      total_deductions: acc.total_deductions + (p.total_deductions || 0),
+      net_pay: acc.net_pay + (p.net_pay || 0),
+      // Employer Contributions
+      nssf_employer: acc.nssf_employer + (p.nssf_employer || 0),
+      ahl_employer: acc.ahl_employer + (p.ahl_employer || 0),
+      nita: acc.nita + (p.nita || 0),
+      cost_to_company: acc.cost_to_company + (p.cost_to_company || 0),
     }),
-    { gross: 0, net: 0, paye: 0, nssf: 0, shif: 0, ahl: 0 }
-  ) || { gross: 0, net: 0, paye: 0, nssf: 0, shif: 0, ahl: 0 }
+    {
+      basic_salary: 0,
+      car_allowance: 0,
+      meal_allowance: 0,
+      telephone_allowance: 0,
+      housing_allowance: 0,
+      gross_pay: 0,
+      nssf_employee: 0,
+      shif_employee: 0,
+      ahl_employee: 0,
+      paye: 0,
+      helb: 0,
+      total_deductions: 0,
+      net_pay: 0,
+      nssf_employer: 0,
+      ahl_employer: 0,
+      nita: 0,
+      cost_to_company: 0,
+    }
+  ) || {
+    basic_salary: 0,
+    car_allowance: 0,
+    meal_allowance: 0,
+    telephone_allowance: 0,
+    housing_allowance: 0,
+    gross_pay: 0,
+    nssf_employee: 0,
+    shif_employee: 0,
+    ahl_employee: 0,
+    paye: 0,
+    helb: 0,
+    total_deductions: 0,
+    net_pay: 0,
+    nssf_employer: 0,
+    ahl_employer: 0,
+    nita: 0,
+    cost_to_company: 0,
+  }
 
   // Determine user actions
   const canApproveAsHR = ["admin", "hr"].includes(userRole) && payrollRun.status === "hr_pending"
@@ -76,9 +134,6 @@ export default async function PayrollDetailPage({ params }: PageProps) {
     const { createClient } = await import("@/lib/supabase/client")
     const supabase = createClient()
 
-    // Resubmit rejected payroll -> goes back to hr_pending
-    // We update the payroll status, but the workflow system should really handle this via a new request or step reset.
-    // For now, we'll manually reset the status as the old version did, but ideally we'd use the workflow service.
     const { error } = await supabase
       .from("payroll_runs")
       .update({
@@ -118,6 +173,12 @@ export default async function PayrollDetailPage({ params }: PageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <PayrollCsvExport
+            payslips={payrollRun.payslips || []}
+            month={payrollRun.month}
+            year={payrollRun.year}
+            companyName={companyName}
+          />
           {showApproveButton && (
             <Link href={`/payroll/${params.id}/approve`}>
               <Button>
@@ -160,94 +221,148 @@ export default async function PayrollDetailPage({ params }: PageProps) {
         </Card>
       )}
 
+      {/* Payroll Summary Cards */}
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Summary */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Payroll Summary</CardTitle>
-            <CardDescription>Overview of payroll totals</CardDescription>
+        {/* Employee Deductions Summary */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Employee Deductions</CardTitle>
+            <CardDescription>Total deductions from employees</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total Gross</p>
-                <p className="text-xl font-semibold">{formatCurrency(totals.gross)}</p>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">NSSF (Employee)</span>
+              <span className="font-medium text-red-600">{formatCurrency(totals.nssf_employee)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">SHIF (Employee)</span>
+              <span className="font-medium text-red-600">{formatCurrency(totals.shif_employee)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">AHL (Employee)</span>
+              <span className="font-medium text-red-600">{formatCurrency(totals.ahl_employee)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">PAYE</span>
+              <span className="font-medium text-red-600">{formatCurrency(totals.paye)}</span>
+            </div>
+            {totals.helb > 0 && (
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">HELB</span>
+                <span className="font-medium text-red-600">{formatCurrency(totals.helb)}</span>
               </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total NSSF</p>
-                <p className="text-xl font-semibold text-red-600">{formatCurrency(totals.nssf)}</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total SHIF</p>
-                <p className="text-xl font-semibold text-red-600">{formatCurrency(totals.shif)}</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total AHL</p>
-                <p className="text-xl font-semibold text-red-600">{formatCurrency(totals.ahl)}</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total PAYE</p>
-                <p className="text-xl font-semibold text-red-600">{formatCurrency(totals.paye)}</p>
-              </div>
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Total Net Pay</p>
-                <p className="text-xl font-semibold text-green-700">{formatCurrency(totals.net)}</p>
-              </div>
+            )}
+            <div className="border-t pt-3 flex justify-between">
+              <span className="font-medium">Total Deductions</span>
+              <span className="font-bold text-red-600">{formatCurrency(totals.total_deductions)}</span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Approval Timeline */}
+        {/* Employer Contributions */}
         <Card>
-          <CardHeader>
-            <CardTitle>Approval Status</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Employer Contributions
+            </CardTitle>
+            <CardDescription>Company statutory contributions</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ApprovalTimeline payrollRun={payrollRun as PayrollRun} />
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">NSSF (Employer)</span>
+              <span className="font-medium text-orange-600">{formatCurrency(totals.nssf_employer)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">AHL (Employer)</span>
+              <span className="font-medium text-orange-600">{formatCurrency(totals.ahl_employer)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">NITA</span>
+              <span className="font-medium text-orange-600">{formatCurrency(totals.nita)}</span>
+            </div>
+            <div className="border-t pt-3 flex justify-between">
+              <span className="font-medium">Total Employer Cost</span>
+              <span className="font-bold text-orange-600">
+                {formatCurrency(totals.nssf_employer + totals.ahl_employer + totals.nita)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Overall Summary */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Payroll Summary</CardTitle>
+            <CardDescription>Overall payroll totals</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Gross Pay</span>
+              <span className="font-medium">{formatCurrency(totals.gross_pay)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Total Deductions</span>
+              <span className="font-medium text-red-600">({formatCurrency(totals.total_deductions)})</span>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-sm text-muted-foreground">Total Net Pay</span>
+              <span className="font-bold text-green-600">{formatCurrency(totals.net_pay)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm text-muted-foreground">Employer Contributions</span>
+              <span className="font-medium text-orange-600">
+                {formatCurrency(totals.nssf_employer + totals.ahl_employer + totals.nita)}
+              </span>
+            </div>
+            <div className="border-t pt-3 flex justify-between bg-blue-50 -mx-6 px-6 py-3 rounded-b-lg">
+              <span className="font-bold">Total Cost to Company</span>
+              <span className="font-bold text-blue-700">{formatCurrency(totals.cost_to_company)}</span>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Payslips Table */}
+      {/* Approval Timeline */}
       <Card>
         <CardHeader>
-          <CardTitle>Employee Payslips</CardTitle>
+          <CardTitle>Approval Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ApprovalTimeline payrollRun={payrollRun as PayrollRun} />
+        </CardContent>
+      </Card>
+
+      {/* Detailed Payslips Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Employee Payroll Details</CardTitle>
           <CardDescription>
-            Individual payroll breakdown for each employee
+            Complete breakdown for each employee including all deductions and employer costs
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead className="text-right">Gross Pay</TableHead>
-                  <TableHead className="text-right">NSSF</TableHead>
-                  <TableHead className="text-right">SHIF</TableHead>
-                  <TableHead className="text-right">AHL</TableHead>
-                  <TableHead className="text-right">PAYE</TableHead>
-                  <TableHead className="text-right">Net Pay</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="font-semibold">Employee</TableHead>
+                  <TableHead className="font-semibold">Department</TableHead>
+                  <TableHead className="text-right font-semibold">Gross Pay</TableHead>
+                  <TableHead className="text-right font-semibold">NSSF (Emp)</TableHead>
+                  <TableHead className="text-right font-semibold">SHIF</TableHead>
+                  <TableHead className="text-right font-semibold">AHL (Emp)</TableHead>
+                  <TableHead className="text-right font-semibold">PAYE</TableHead>
+                  <TableHead className="text-right font-semibold">Net Pay</TableHead>
+                  <TableHead className="text-right font-semibold">NSSF (Empr)</TableHead>
+                  <TableHead className="text-right font-semibold">AHL (Empr)</TableHead>
+                  <TableHead className="text-right font-semibold">NITA</TableHead>
+                  <TableHead className="text-right font-semibold">Cost to Co.</TableHead>
+                  <TableHead className="text-right font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payrollRun.payslips?.map((payslip: {
-                  id: string
-                  gross_pay: number
-                  nssf_employee: number
-                  shif_employee: number
-                  ahl_employee: number
-                  paye: number
-                  net_pay: number
-                  employees: {
-                    first_name: string
-                    last_name: string
-                    staff_id: string
-                    departments?: { name: string }
-                  }
-                }) => (
+                {payrollRun.payslips?.map((payslip: any) => (
                   <TableRow key={payslip.id}>
                     <TableCell>
                       <div>
@@ -280,6 +395,18 @@ export default async function PayrollDetailPage({ params }: PageProps) {
                     <TableCell className="text-right font-semibold text-green-600">
                       {formatCurrency(payslip.net_pay)}
                     </TableCell>
+                    <TableCell className="text-right text-orange-600">
+                      {formatCurrency(payslip.nssf_employer)}
+                    </TableCell>
+                    <TableCell className="text-right text-orange-600">
+                      {formatCurrency(payslip.ahl_employer)}
+                    </TableCell>
+                    <TableCell className="text-right text-orange-600">
+                      {formatCurrency(payslip.nita)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-blue-600">
+                      {formatCurrency(payslip.cost_to_company)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Link href={`/payslips/${payslip.id}`}>
                         <Button variant="ghost" size="sm">
@@ -290,6 +417,22 @@ export default async function PayrollDetailPage({ params }: PageProps) {
                   </TableRow>
                 ))}
               </TableBody>
+              <TableFooter>
+                <TableRow className="bg-gray-100 font-semibold">
+                  <TableCell colSpan={2}>TOTALS</TableCell>
+                  <TableCell className="text-right">{formatCurrency(totals.gross_pay)}</TableCell>
+                  <TableCell className="text-right text-red-600">({formatCurrency(totals.nssf_employee)})</TableCell>
+                  <TableCell className="text-right text-red-600">({formatCurrency(totals.shif_employee)})</TableCell>
+                  <TableCell className="text-right text-red-600">({formatCurrency(totals.ahl_employee)})</TableCell>
+                  <TableCell className="text-right text-red-600">({formatCurrency(totals.paye)})</TableCell>
+                  <TableCell className="text-right text-green-600">{formatCurrency(totals.net_pay)}</TableCell>
+                  <TableCell className="text-right text-orange-600">{formatCurrency(totals.nssf_employer)}</TableCell>
+                  <TableCell className="text-right text-orange-600">{formatCurrency(totals.ahl_employer)}</TableCell>
+                  <TableCell className="text-right text-orange-600">{formatCurrency(totals.nita)}</TableCell>
+                  <TableCell className="text-right text-blue-600">{formatCurrency(totals.cost_to_company)}</TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              </TableFooter>
             </Table>
           </div>
         </CardContent>
