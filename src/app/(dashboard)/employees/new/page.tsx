@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,14 +13,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { PAY_GROUPS } from "@/lib/constants"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Copy, Check, User, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface UserCredentials {
+  email: string
+  temporary_password: string
+  user_id: string
+}
 
 export default function NewEmployeePage() {
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [createUserAccount, setCreateUserAccount] = useState(true)
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false)
+  const [userCredentials, setUserCredentials] = useState<UserCredentials | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     staff_id: "",
@@ -49,85 +67,76 @@ export default function NewEmployeePage() {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // Get user's company
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user?.id)
-        .single()
-
-      if (!profile?.company_id) {
+      // Validate email is provided if creating user account
+      if (createUserAccount && !formData.email) {
         toast({
           variant: "destructive",
-          title: "Error",
-          description: "Company not found",
+          title: "Email Required",
+          description: "Email is required when creating a user account",
         })
+        setLoading(false)
         return
       }
 
-      // Create employee
-      const { data: employee, error: employeeError } = await supabase
-        .from("employees")
-        .insert({
-          company_id: profile.company_id,
-          staff_id: formData.staff_id,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          middle_name: formData.middle_name || null,
-          gender: formData.gender || null,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          employment_date: formData.employment_date,
-          job_role: formData.job_role || null,
-          kra_pin: formData.kra_pin || null,
-          nssf_number: formData.nssf_number || null,
-          nhif_number: formData.nhif_number || null,
-          bank_name: formData.bank_name || null,
-          account_number: formData.account_number || null,
-          status: "active",
-        })
-        .select()
-        .single()
-
-      if (employeeError) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: employeeError.message,
-        })
-        return
-      }
-
-      // Create salary structure
-      if (employee && formData.basic_salary) {
-        const { error: salaryError } = await supabase
-          .from("salary_structures")
-          .insert({
-            employee_id: employee.id,
-            basic_salary: parseFloat(formData.basic_salary) || 0,
-            car_allowance: parseFloat(formData.car_allowance) || 0,
-            meal_allowance: parseFloat(formData.meal_allowance) || 0,
-            telephone_allowance: parseFloat(formData.telephone_allowance) || 0,
-            housing_allowance: parseFloat(formData.housing_allowance) || 0,
-            effective_date: formData.employment_date,
-          })
-
-        if (salaryError) {
-          console.error("Salary structure error:", salaryError)
-        }
-      }
-
-      toast({
-        title: "Success",
-        description: "Employee created successfully",
+      const response = await fetch("/api/employees", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...formData,
+          create_user_account: createUserAccount,
+        }),
       })
-      router.push("/employees")
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.error || "Failed to create employee",
+        })
+        return
+      }
+
+      // Check if user credentials were returned
+      if (data.user_credentials) {
+        setUserCredentials(data.user_credentials)
+        setShowCredentialsDialog(true)
+        toast({
+          title: "Success",
+          description: "Employee and user account created successfully",
+        })
+      } else if (data.warning) {
+        toast({
+          variant: "destructive",
+          title: "Partial Success",
+          description: data.warning,
+        })
+        router.push("/employees")
+      } else {
+        toast({
+          title: "Success",
+          description: "Employee created successfully",
+        })
+        router.push("/employees")
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -137,6 +146,12 @@ export default function NewEmployeePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDialogClose = () => {
+    setShowCredentialsDialog(false)
+    setUserCredentials(null)
+    router.push("/employees")
   }
 
   return (
@@ -215,12 +230,15 @@ export default function NewEmployeePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">
+                    Email {createUserAccount && "*"}
+                  </Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleChange("email", e.target.value)}
+                    required={createUserAccount}
                   />
                 </div>
                 <div className="space-y-2">
@@ -368,6 +386,41 @@ export default function NewEmployeePage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                User Account
+              </CardTitle>
+              <CardDescription>
+                Create a login account for this employee
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="create_user_account"
+                  checked={createUserAccount}
+                  onCheckedChange={(checked) => setCreateUserAccount(checked === true)}
+                />
+                <Label htmlFor="create_user_account" className="cursor-pointer">
+                  Create user account for this employee
+                </Label>
+              </div>
+
+              {createUserAccount && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    A user account will be created with the employee's email address.
+                    A temporary password will be generated and displayed after creation.
+                    Make sure to share the credentials with the employee securely.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="flex justify-end gap-4 mt-6">
@@ -383,6 +436,84 @@ export default function NewEmployeePage() {
           </Button>
         </div>
       </form>
+
+      {/* Credentials Dialog */}
+      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-600" />
+              Employee Created Successfully
+            </DialogTitle>
+            <DialogDescription>
+              A user account has been created. Please share these credentials securely with the employee.
+            </DialogDescription>
+          </DialogHeader>
+
+          {userCredentials && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Email</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={userCredentials.email}
+                    readOnly
+                    className="flex-1 bg-muted"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => copyToClipboard(userCredentials.email, "email")}
+                  >
+                    {copiedField === "email" ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Temporary Password</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={userCredentials.temporary_password}
+                    readOnly
+                    className="flex-1 bg-muted font-mono"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => copyToClipboard(userCredentials.temporary_password, "password")}
+                  >
+                    {copiedField === "password" ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  This password will not be shown again. Make sure to copy it now and share it securely with the employee.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={handleDialogClose}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

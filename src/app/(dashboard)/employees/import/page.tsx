@@ -3,9 +3,9 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -15,9 +15,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, ArrowLeft, Download } from "lucide-react"
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, ArrowLeft, Download, User, Copy, Check } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface ParsedEmployee {
   staff_id: string
@@ -43,16 +52,24 @@ interface ParsedEmployee {
   errors: string[]
 }
 
+interface UserCredential {
+  email: string
+  temporary_password: string
+  name: string
+}
+
 export default function ImportEmployeesPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [loading, setLoading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [parsedData, setParsedData] = useState<ParsedEmployee[]>([])
   const [fileName, setFileName] = useState("")
+  const [createUserAccounts, setCreateUserAccounts] = useState(true)
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false)
+  const [createdCredentials, setCreatedCredentials] = useState<UserCredential[]>([])
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   const expectedHeaders = [
     "staff_id",
@@ -141,7 +158,6 @@ export default function ImportEmployeesPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setLoading(true)
     setFileName(file.name)
 
     try {
@@ -162,8 +178,6 @@ export default function ImportEmployeesPage() {
         title: "Error",
         description: "Failed to parse CSV file",
       })
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -179,87 +193,67 @@ export default function ImportEmployeesPage() {
     }
 
     setImporting(true)
+    const credentials: UserCredential[] = []
 
     try {
-      // Get user's company
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user?.id)
-        .single()
-
-      if (!profile?.company_id) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Company not found",
-        })
-        return
-      }
-
       let successCount = 0
       let errorCount = 0
+      let userAccountCount = 0
 
       for (const emp of validEmployees) {
         try {
-          // Create employee
-          const { data: employee, error: employeeError } = await supabase
-            .from("employees")
-            .insert({
-              company_id: profile.company_id,
-              staff_id: emp.staff_id,
-              first_name: emp.first_name,
-              last_name: emp.last_name,
-              middle_name: emp.middle_name || null,
-              gender: emp.gender || null,
-              email: emp.email || null,
-              phone: emp.phone || null,
-              employment_date: emp.employment_date,
-              job_role: emp.job_role || null,
-              kra_pin: emp.kra_pin || null,
-              nssf_number: emp.nssf_number || null,
-              nhif_number: emp.nhif_number || null,
-              bank_name: emp.bank_name || null,
-              account_number: emp.account_number || null,
-              status: "active",
-            })
-            .select()
-            .single()
+          const response = await fetch("/api/employees", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...emp,
+              create_user_account: createUserAccounts && !!emp.email,
+            }),
+          })
 
-          if (employeeError) {
+          const data = await response.json()
+
+          if (!response.ok) {
             errorCount++
-            console.error(`Error creating ${emp.staff_id}:`, employeeError)
+            console.error(`Error creating ${emp.staff_id}:`, data.error)
             continue
           }
 
-          // Create salary structure if basic_salary is provided
-          if (employee && emp.basic_salary) {
-            await supabase.from("salary_structures").insert({
-              employee_id: employee.id,
-              basic_salary: emp.basic_salary || 0,
-              car_allowance: emp.car_allowance || 0,
-              meal_allowance: emp.meal_allowance || 0,
-              telephone_allowance: emp.telephone_allowance || 0,
-              housing_allowance: emp.housing_allowance || 0,
-              effective_date: emp.employment_date,
+          successCount++
+
+          // Collect credentials if user account was created
+          if (data.user_credentials) {
+            userAccountCount++
+            credentials.push({
+              email: data.user_credentials.email,
+              temporary_password: data.user_credentials.temporary_password,
+              name: `${emp.first_name} ${emp.last_name}`,
             })
           }
-
-          successCount++
         } catch (err) {
           errorCount++
           console.error(`Error processing ${emp.staff_id}:`, err)
         }
       }
 
-      toast({
-        title: "Import Complete",
-        description: `Successfully imported ${successCount} employees. ${errorCount > 0 ? `${errorCount} failed.` : ""}`,
-      })
-
-      if (successCount > 0) {
-        router.push("/employees")
+      // Show credentials dialog if any user accounts were created
+      if (credentials.length > 0) {
+        setCreatedCredentials(credentials)
+        setShowCredentialsDialog(true)
+        toast({
+          title: "Import Complete",
+          description: `Imported ${successCount} employees. ${userAccountCount} user accounts created.${errorCount > 0 ? ` ${errorCount} failed.` : ""}`,
+        })
+      } else {
+        toast({
+          title: "Import Complete",
+          description: `Successfully imported ${successCount} employees.${errorCount > 0 ? ` ${errorCount} failed.` : ""}`,
+        })
+        if (successCount > 0) {
+          router.push("/employees")
+        }
       }
     } catch (error) {
       toast({
@@ -269,6 +263,32 @@ export default function ImportEmployeesPage() {
       })
     } finally {
       setImporting(false)
+    }
+  }
+
+  const copyCredentials = async (index: number, credential: UserCredential) => {
+    try {
+      const text = `Email: ${credential.email}\nPassword: ${credential.temporary_password}`
+      await navigator.clipboard.writeText(text)
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+  }
+
+  const copyAllCredentials = async () => {
+    try {
+      const text = createdCredentials
+        .map(c => `${c.name}\nEmail: ${c.email}\nPassword: ${c.temporary_password}`)
+        .join("\n\n---\n\n")
+      await navigator.clipboard.writeText(text)
+      toast({
+        title: "Copied",
+        description: "All credentials copied to clipboard",
+      })
+    } catch (err) {
+      console.error("Failed to copy:", err)
     }
   }
 
@@ -286,8 +306,15 @@ export default function ImportEmployeesPage() {
     URL.revokeObjectURL(url)
   }
 
+  const handleDialogClose = () => {
+    setShowCredentialsDialog(false)
+    setCreatedCredentials([])
+    router.push("/employees")
+  }
+
   const validCount = parsedData.filter(e => e.isValid).length
   const invalidCount = parsedData.length - validCount
+  const employeesWithEmail = parsedData.filter(e => e.isValid && e.email).length
 
   return (
     <div className="space-y-6">
@@ -404,6 +431,50 @@ export default function ImportEmployeesPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                User Account Options
+              </CardTitle>
+              <CardDescription>
+                Configure user account creation for imported employees
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="create_user_accounts"
+                  checked={createUserAccounts}
+                  onCheckedChange={(checked) => setCreateUserAccounts(checked === true)}
+                />
+                <Label htmlFor="create_user_accounts" className="cursor-pointer">
+                  Create user accounts for employees with email addresses
+                </Label>
+              </div>
+
+              {createUserAccounts && employeesWithEmail > 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {employeesWithEmail} employee(s) have email addresses and will receive user accounts.
+                    Temporary passwords will be generated and displayed after import.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {createUserAccounts && employeesWithEmail === 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    No employees in the CSV have email addresses. User accounts will not be created.
+                    Add email addresses to the CSV to create user accounts.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Preview Data</CardTitle>
               <CardDescription>
                 Review the parsed data before importing
@@ -479,6 +550,74 @@ export default function ImportEmployeesPage() {
           </div>
         </>
       )}
+
+      {/* Credentials Dialog */}
+      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-600" />
+              Import Complete - User Credentials
+            </DialogTitle>
+            <DialogDescription>
+              {createdCredentials.length} user account(s) were created. Please share these credentials securely with the employees.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={copyAllCredentials}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy All Credentials
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {createdCredentials.map((credential, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 border rounded-lg bg-muted/50"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium">{credential.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Email: <span className="font-mono">{credential.email}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Password: <span className="font-mono">{credential.temporary_password}</span>
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => copyCredentials(index, credential)}
+                  >
+                    {copiedIndex === index ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                These passwords will not be shown again. Make sure to copy them now and share securely with employees.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={handleDialogClose}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
