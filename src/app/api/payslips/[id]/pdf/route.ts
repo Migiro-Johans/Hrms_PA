@@ -10,6 +10,22 @@ export async function GET(
   try {
     const supabase = await createClient()
 
+    // Get the current user's role
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role, employee_id")
+      .eq("id", user.id)
+      .single()
+
     const { data: payslip, error } = await supabase
       .from("payslips")
       .select(`
@@ -29,6 +45,29 @@ export async function GET(
         { error: "Payslip not found" },
         { status: 404 }
       )
+    }
+
+    // Check authorization for employees
+    // Employees can only download their own payslips that are approved or paid
+    const isAdminRole = ["admin", "hr", "finance", "management"].includes(profile?.role || "")
+    const isOwnPayslip = profile?.employee_id === payslip.employee_id
+    const isApproved = ["approved", "paid"].includes(payslip.payroll_runs?.status)
+
+    if (!isAdminRole) {
+      // For non-admin users (employees)
+      if (!isOwnPayslip) {
+        return NextResponse.json(
+          { error: "You can only download your own payslips" },
+          { status: 403 }
+        )
+      }
+
+      if (!isApproved) {
+        return NextResponse.json(
+          { error: "Payslip is not yet approved for download. Please wait for HR approval." },
+          { status: 403 }
+        )
+      }
     }
 
     const buffer = await renderToBuffer(PayslipPDF({ payslip }))

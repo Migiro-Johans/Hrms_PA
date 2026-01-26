@@ -118,11 +118,15 @@ export default async function PayslipsPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                       </Link>
-                      <Link href={`/api/payslips/${payslip.id}/pdf`} target="_blank">
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      {/* Only show download for approved/paid payslips, or for admin/hr/finance roles */}
+                      {(["approved", "paid"].includes(payslip.payroll_runs?.status) ||
+                        ["admin", "hr", "finance"].includes(profile?.role || "")) && (
+                        <Link href={`/api/payslips/${payslip.id}/pdf`} target="_blank">
+                          <Button variant="ghost" size="sm">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

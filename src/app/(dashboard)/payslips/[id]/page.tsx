@@ -13,6 +13,14 @@ export default async function PayslipDetailPage({
 }) {
   const supabase = await createClient()
 
+  // Get current user's role
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user?.id)
+    .single()
+
   const { data: payslip } = await supabase
     .from("payslips")
     .select(`
@@ -34,6 +42,11 @@ export default async function PayslipDetailPage({
   const payrollRun = payslip.payroll_runs
   const company = payrollRun?.companies
 
+  // Check if download is allowed
+  const isAdminRole = ["admin", "hr", "finance", "management"].includes(profile?.role || "")
+  const isApproved = ["approved", "paid"].includes(payrollRun?.status)
+  const canDownload = isAdminRole || isApproved
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -53,12 +66,19 @@ export default async function PayslipDetailPage({
             </p>
           </div>
         </div>
-        <Link href={`/api/payslips/${params.id}/pdf`} target="_blank">
-          <Button>
+        {canDownload ? (
+          <Link href={`/api/payslips/${params.id}/pdf`} target="_blank">
+            <Button>
+              <Download className="mr-2 h-4 w-4" />
+              Download PDF
+            </Button>
+          </Link>
+        ) : (
+          <Button disabled variant="outline">
             <Download className="mr-2 h-4 w-4" />
-            Download PDF
+            Awaiting Approval
           </Button>
-        </Link>
+        )}
       </div>
 
       <div className="bg-white border rounded-lg p-8 max-w-4xl mx-auto">
