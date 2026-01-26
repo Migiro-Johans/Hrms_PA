@@ -23,8 +23,11 @@ export default async function PayslipsPage() {
     .eq("id", user?.id)
     .single()
 
-  // For employees, show only their payslips
-  // For admin/hr/accountant, show all payslips
+  // Determine if user can see all payslips (admin, hr, finance, management roles)
+  const canSeeAllPayslips = ["admin", "hr", "finance", "management"].includes(profile?.role || "")
+
+  // For regular employees, show only their own payslips
+  // For admin/hr/finance/management, show all payslips in the company
   let query = supabase
     .from("payslips")
     .select(`
@@ -34,8 +37,24 @@ export default async function PayslipsPage() {
     `)
     .order("created_at", { ascending: false })
 
-  if (profile?.role === "employee" && profile?.employee_id) {
+  if (!canSeeAllPayslips && profile?.employee_id) {
+    // Regular employees only see their own payslips
     query = query.eq("employee_id", profile.employee_id)
+  } else if (canSeeAllPayslips && profile?.company_id) {
+    // Admin/HR/Finance/Management see all payslips in their company
+    // Need to filter by company through the employees table
+    const { data: companyEmployees } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("company_id", profile.company_id)
+
+    if (companyEmployees && companyEmployees.length > 0) {
+      const employeeIds = companyEmployees.map(e => e.id)
+      query = query.in("employee_id", employeeIds)
+    }
+  } else if (!canSeeAllPayslips && !profile?.employee_id) {
+    // User has no employee_id and is not admin - show nothing
+    query = query.eq("employee_id", "00000000-0000-0000-0000-000000000000")
   }
 
   const { data: payslips } = await query
@@ -44,7 +63,7 @@ export default async function PayslipsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
-          {profile?.role === "employee" ? "My Payslips" : "All Payslips"}
+          {canSeeAllPayslips ? "All Payslips" : "My Payslips"}
         </h1>
         <p className="text-muted-foreground">
           View and download payslip documents
@@ -62,7 +81,7 @@ export default async function PayslipsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                {profile?.role !== "employee" && <TableHead>Employee</TableHead>}
+                {canSeeAllPayslips && <TableHead>Employee</TableHead>}
                 <TableHead>Period</TableHead>
                 <TableHead className="text-right">Gross Pay</TableHead>
                 <TableHead className="text-right">Deductions</TableHead>
@@ -74,7 +93,7 @@ export default async function PayslipsPage() {
             <TableBody>
               {payslips?.map((payslip) => (
                 <TableRow key={payslip.id}>
-                  {profile?.role !== "employee" && (
+                  {canSeeAllPayslips && (
                     <TableCell>
                       <div>
                         <p className="font-medium">
@@ -133,7 +152,7 @@ export default async function PayslipsPage() {
               ))}
               {(!payslips || payslips.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={profile?.role === "employee" ? 6 : 7} className="text-center py-8">
+                  <TableCell colSpan={canSeeAllPayslips ? 7 : 6} className="text-center py-8">
                     <p className="text-muted-foreground">No payslips found</p>
                   </TableCell>
                 </TableRow>

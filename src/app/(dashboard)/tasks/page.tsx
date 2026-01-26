@@ -19,15 +19,22 @@ export default async function TasksPage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees:employee_id(id, is_line_manager, department_id)')
+        .select('*, employee_id, employees:employee_id(id, is_line_manager, department_id)')
         .eq('id', user.id)
         .single()
 
     const userRole = profile?.role || "employee"
-    const isLineManager = (profile?.employees as any)?.is_line_manager || false
+
+    // Handle the employees join - could be object or array depending on Supabase response
+    const employeeData = Array.isArray(profile?.employees)
+        ? profile?.employees[0]
+        : profile?.employees
+
+    const isLineManager = employeeData?.is_line_manager || false
     const canAssignTasks = ["admin", "hr"].includes(userRole) || isLineManager
 
-    const employeeId = (profile?.employees as any)?.id
+    // Get employee ID from the joined data or directly from the profile
+    const employeeId = employeeData?.id || profile?.employee_id
     const tasks = employeeId ? await getTasksAction({
         employeeId,
         companyId: profile?.company_id || ""

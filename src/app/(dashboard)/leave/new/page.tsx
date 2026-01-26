@@ -13,11 +13,19 @@ export default async function NewLeavePage() {
 
     const { data: profile } = await supabase
         .from('users')
-        .select('*, employees:employee_id(*)')
+        .select('*, employee_id, employees:employee_id(*)')
         .eq('id', user.id)
         .single()
 
-    if (!profile || !profile.employees) {
+    // Handle the employees join - could be object or array depending on Supabase response
+    const employeeData = Array.isArray(profile?.employees)
+        ? profile?.employees[0]
+        : profile?.employees
+
+    // Get employee ID from joined data or directly from profile
+    const employeeId = employeeData?.id || profile?.employee_id
+
+    if (!profile || !employeeId) {
         redirect("/dashboard")
     }
 
@@ -26,7 +34,7 @@ export default async function NewLeavePage() {
     return (
         <div className="container mx-auto py-6">
             <NewLeaveForm
-                employeeId={profile.employees.id}
+                employeeId={employeeId}
                 companyId={profile.company_id}
                 leaveTypes={leaveTypes}
             />
