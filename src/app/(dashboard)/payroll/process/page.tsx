@@ -233,40 +233,6 @@ export default function ProcessPayrollPage() {
         .update({ status: "hr_pending" })
         .eq("id", payrollRun.id)
 
-      // Create approval request
-      try {
-        const { createApprovalRequestAction } = await import("@/lib/actions/workflow")
-        const { data: { user: currentUser } } = await supabase.auth.getUser()
-
-        // Get employee ID for the current user
-        const { data: userData } = await supabase
-          .from("users")
-          .select("employee_id")
-          .eq("id", currentUser?.id)
-          .single()
-
-        if (userData?.employee_id) {
-          const workflowResult = await createApprovalRequestAction({
-            companyId: companyId!,
-            entityType: "payroll",
-            entityId: payrollRun.id,
-            requesterId: userData.employee_id,
-            metadata: {
-              month,
-              year,
-              total_gross: totals.gross,
-              total_net: totals.net
-            }
-          })
-
-          if (workflowResult.error) {
-            console.error("Workflow action error:", workflowResult.error)
-          }
-        }
-      } catch (workflowError) {
-        console.error("Failed to create approval request:", workflowError)
-      }
-
       toast({
         title: "Payroll Submitted for Approval",
         description: `Payroll for ${getMonthName(month)} ${year} has been submitted for HR approval`,

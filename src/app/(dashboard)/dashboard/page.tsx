@@ -137,42 +137,66 @@ export default async function DashboardPage() {
             <CardDescription>Common payroll tasks</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <a
-              href="/employees/new"
-              className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
-            >
-              <Users className="h-5 w-5 text-primary" />
-              <div>
-                <p className="font-medium">Add New Employee</p>
-                <p className="text-sm text-muted-foreground">
-                  Register a new employee in the system
-                </p>
-              </div>
-            </a>
-            <a
-              href="/payroll/process"
-              className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
-            >
-              <DollarSign className="h-5 w-5 text-primary" />
-              <div>
-                <p className="font-medium">Process Payroll</p>
-                <p className="text-sm text-muted-foreground">
-                  Run monthly payroll for all employees
-                </p>
-              </div>
-            </a>
-            <a
-              href="/reports/p9"
-              className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
-            >
-              <FileText className="h-5 w-5 text-primary" />
-              <div>
-                <p className="font-medium">Generate P9 Forms</p>
-                <p className="text-sm text-muted-foreground">
-                  Generate tax deduction cards for employees
-                </p>
-              </div>
-            </a>
+            {/* Add Employee - only for admin and HR, not finance */}
+            {["admin", "hr"].includes(userRole) && (
+              <a
+                href="/employees/new"
+                className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
+              >
+                <Users className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Add New Employee</p>
+                  <p className="text-sm text-muted-foreground">
+                    Register a new employee in the system
+                  </p>
+                </div>
+              </a>
+            )}
+            {/* Process Payroll - for admin, hr, and finance */}
+            {["admin", "hr", "finance"].includes(userRole) && (
+              <a
+                href="/payroll/process"
+                className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
+              >
+                <DollarSign className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Process Payroll</p>
+                  <p className="text-sm text-muted-foreground">
+                    Run monthly payroll for all employees
+                  </p>
+                </div>
+              </a>
+            )}
+            {/* Manage Deductions - for finance */}
+            {["admin", "finance"].includes(userRole) && (
+              <a
+                href="/payroll/deductions"
+                className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
+              >
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Manage Deductions</p>
+                  <p className="text-sm text-muted-foreground">
+                    Configure loans, HELB, and other deductions
+                  </p>
+                </div>
+              </a>
+            )}
+            {/* P9 Reports - for admin, hr, and finance */}
+            {["admin", "hr", "finance"].includes(userRole) && (
+              <a
+                href="/reports/p9"
+                className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
+              >
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Generate P9 Forms</p>
+                  <p className="text-sm text-muted-foreground">
+                    Generate tax deduction cards for employees
+                  </p>
+                </div>
+              </a>
+            )}
           </CardContent>
         </Card>
       </div>

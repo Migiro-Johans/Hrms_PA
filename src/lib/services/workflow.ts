@@ -186,14 +186,37 @@ export async function processApproval(
   // Sync entity status
   if (request.entity_type === 'payroll') {
     let payrollStatus: string = '';
+    const updateData: Record<string, unknown> = {};
 
     if (newStatus === 'rejected') {
-      payrollStatus = currentStep === 1 ? 'hr_rejected' : 'mgmt_rejected';
+      // Step 1 = Finance, Step 2 = HR, Step 3 = Management
+      if (currentStep === 2) {
+        payrollStatus = 'hr_rejected';
+      } else if (currentStep === 3) {
+        payrollStatus = 'mgmt_rejected';
+      } else {
+        payrollStatus = 'hr_rejected'; // Default fallback
+      }
+      updateData.rejection_comments = comments;
     } else if (newStatus === 'approved') {
       payrollStatus = 'approved';
+      // Record management approval
+      updateData.management_approved_by = approverId;
+      updateData.management_approved_at = new Date().toISOString();
+      updateData.approved_by = approverId;
+      updateData.approved_at = new Date().toISOString();
     } else {
       // Pending next step
-      payrollStatus = newStep === 2 ? 'hr_pending' : 'mgmt_pending';
+      if (newStep === 2) {
+        payrollStatus = 'hr_pending';
+      } else if (newStep === 3) {
+        payrollStatus = 'mgmt_pending';
+        // Record HR approval when moving to management step
+        updateData.hr_approved_by = approverId;
+        updateData.hr_approved_at = new Date().toISOString();
+      } else {
+        payrollStatus = 'mgmt_pending';
+      }
     }
 
     if (payrollStatus) {
@@ -201,7 +224,7 @@ export async function processApproval(
         .from('payroll_runs')
         .update({
           status: payrollStatus,
-          rejection_comments: action === 'rejected' ? comments : null
+          ...updateData
         })
         .eq('id', request.entity_id);
     }

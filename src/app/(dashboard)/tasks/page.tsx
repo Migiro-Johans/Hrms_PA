@@ -26,10 +26,11 @@ export default async function TasksPage() {
     const isLineManager = (profile?.employees as any)?.is_line_manager || false
     const canAssignTasks = ["admin", "hr"].includes(userRole) || isLineManager
 
-    const tasks = await getTasksAction({
-        employeeId: (profile?.employees as any)?.id || "",
+    const employeeId = (profile?.employees as any)?.id
+    const tasks = employeeId ? await getTasksAction({
+        employeeId,
         companyId: profile?.company_id || ""
-    })
+    }) : []
 
     return (
         <div className="container mx-auto py-6 space-y-6">

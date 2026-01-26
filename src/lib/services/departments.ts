@@ -61,7 +61,7 @@ export async function getDepartments(companyId: string): Promise<Department[]> {
     .select(`
       *,
       line_manager:employees!departments_line_manager_id_fkey(id, first_name, last_name),
-      employees(id)
+      employees!employees_department_id_fkey(id)
     `)
     .eq('company_id', companyId)
     .order('name');
