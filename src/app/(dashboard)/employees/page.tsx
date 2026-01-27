@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/utils"
-import { Plus, Upload, Eye } from "lucide-react"
+import { Plus, Upload, Eye, Pencil } from "lucide-react"
 
 export default async function EmployeesPage() {
   const supabase = await createClient()
@@ -42,7 +42,6 @@ export default async function EmployeesPage() {
   }
 
   // Get employees with salary structures
-  // Note: Using explicit foreign key hints due to multiple relationships on employees table
   const { data: employees, error } = await supabase
     .from("employees")
     .select(`
@@ -106,14 +105,16 @@ export default async function EmployeesPage() {
             <TableBody>
               {employees?.map((employee) => {
                 const latestSalary = employee.salary_structures?.[0]
+                const fullName = [employee.first_name, employee.middle_name, employee.last_name]
+                  .filter(Boolean)
+                  .join(" ")
+
                 return (
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">
                       {employee.staff_id}
                     </TableCell>
-                    <TableCell>
-                      {employee.first_name} {employee.middle_name} {employee.last_name}
-                    </TableCell>
+                    <TableCell>{fullName}</TableCell>
                     <TableCell>
                       {employee.departments?.name || "-"}
                     </TableCell>
@@ -136,16 +137,29 @@ export default async function EmployeesPage() {
                         {employee.status}
                       </span>
                     </TableCell>
+
+                    {/* UPDATED ACTIONS */}
                     <TableCell className="text-right">
-                      <Link href={`/employees/${employee.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </Link>
+                      <div className="flex justify-end gap-1">
+                        {/* View */}
+                        <Link href={`/employees/${employee.id}`}>
+                          <Button variant="ghost" size="sm" title="View profile">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+
+                        {/* Update / Edit */}
+                        <Link href={`/employees/${employee.id}/edit`}>
+                          <Button variant="ghost" size="sm" title="Update profile">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
               })}
+
               {(!employees || employees.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
