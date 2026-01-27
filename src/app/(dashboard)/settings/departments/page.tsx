@@ -211,7 +211,7 @@ export default function DepartmentsManagementPage() {
         company_id: formData.company_id,
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        line_manager_id: formData.line_manager_id || null,
+        line_manager_id: formData.line_manager_id && formData.line_manager_id !== "none" ? formData.line_manager_id : null,
       })
 
     if (error) {
@@ -227,7 +227,7 @@ export default function DepartmentsManagementPage() {
       })
 
       // If a line manager was selected, update their is_line_manager status
-      if (formData.line_manager_id) {
+      if (formData.line_manager_id && formData.line_manager_id !== "none") {
         await supabase
           .from("employees")
           .update({ is_line_manager: true })
@@ -257,7 +257,7 @@ export default function DepartmentsManagementPage() {
       .update({
         name: formData.name.trim(),
         description: formData.description.trim() || null,
-        line_manager_id: formData.line_manager_id || null,
+        line_manager_id: formData.line_manager_id && formData.line_manager_id !== "none" ? formData.line_manager_id : null,
       })
       .eq("id", selectedDepartment.id)
 
@@ -274,7 +274,7 @@ export default function DepartmentsManagementPage() {
       })
 
       // Update line manager status
-      if (formData.line_manager_id) {
+      if (formData.line_manager_id && formData.line_manager_id !== "none") {
         await supabase
           .from("employees")
           .update({ is_line_manager: true })
@@ -452,7 +452,7 @@ export default function DepartmentsManagementPage() {
                     <SelectValue placeholder="Select a line manager (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No line manager</SelectItem>
+                    <SelectItem value="none">No line manager</SelectItem>
                     {getEmployeesForCompany(formData.company_id).map((emp) => (
                       <SelectItem key={emp.id} value={emp.id}>
                         {emp.first_name} {emp.last_name} ({emp.staff_id})
@@ -599,7 +599,7 @@ export default function DepartmentsManagementPage() {
                   <SelectValue placeholder="Select a line manager (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No line manager</SelectItem>
+                  <SelectItem value="none">No line manager</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.first_name} {emp.last_name} ({emp.staff_id})
