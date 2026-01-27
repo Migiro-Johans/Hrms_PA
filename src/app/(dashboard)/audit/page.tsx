@@ -28,7 +28,7 @@ import { getAuditLogsAction, exportAuditLogsAction } from "@/lib/actions/audit"
 import type { AuditLog, UserRole } from "@/types"
 
 const TABLE_OPTIONS = [
-  { value: "", label: "All Tables" },
+  { value: "all", label: "All Tables" },
   { value: "payroll_runs", label: "Payroll Runs" },
   { value: "payslips", label: "Payslips" },
   { value: "salary_structures", label: "Salary Structures" },
@@ -40,13 +40,15 @@ const TABLE_OPTIONS = [
 ]
 
 const ACTION_OPTIONS = [
-  { value: "", label: "All Actions" },
+  { value: "all", label: "All Actions" },
   { value: "INSERT", label: "Created" },
   { value: "UPDATE", label: "Updated" },
   { value: "DELETE", label: "Deleted" },
   { value: "APPROVE", label: "Approved" },
   { value: "REJECT", label: "Rejected" },
 ]
+
+const TIMEZONE = "Africa/Nairobi"
 
 export default function AuditLogPage() {
   const router = useRouter()
@@ -58,9 +60,9 @@ export default function AuditLogPage() {
   const [total, setTotal] = useState(0)
   const [companyId, setCompanyId] = useState<string>("")
 
-  // Filters
-  const [tableName, setTableName] = useState("")
-  const [action, setAction] = useState("")
+  // ✅ Filters (IMPORTANT: no empty-string values for SelectItem)
+  const [tableName, setTableName] = useState("all")
+  const [action, setAction] = useState("all")
   const [criticalOnly, setCriticalOnly] = useState(false)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
@@ -69,6 +71,10 @@ export default function AuditLogPage() {
   const [page, setPage] = useState(1)
   const pageSize = 25
 
+  // ✅ Convert "all" -> undefined so backend doesn't try to match "all" as a real value
+  const tableFilter = tableName === "all" ? undefined : tableName
+  const actionFilter = action === "all" ? undefined : action
+
   const loadLogs = useCallback(async () => {
     if (!companyId) return
 
@@ -76,8 +82,8 @@ export default function AuditLogPage() {
 
     try {
       const result = await getAuditLogsAction(companyId, {
-        table_name: tableName || undefined,
-        action: action || undefined,
+        table_name: tableFilter,
+        action: actionFilter,
         is_critical: criticalOnly ? true : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -89,10 +95,20 @@ export default function AuditLogPage() {
       setTotal(result.total)
     } catch (error) {
       console.error("Failed to load audit logs:", error)
+      setLogs([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
-  }, [companyId, tableName, action, criticalOnly, startDate, endDate, page])
+  }, [
+    companyId,
+    tableFilter,
+    actionFilter,
+    criticalOnly,
+    startDate,
+    endDate,
+    page,
+  ])
 
   useEffect(() => {
     const init = async () => {
@@ -103,11 +119,17 @@ export default function AuditLogPage() {
         return
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from("users")
         .select("company_id, role")
         .eq("id", user.id)
         .single()
+
+      if (error) {
+        console.error("Failed to load user profile:", error)
+        router.push("/dashboard")
+        return
+      }
 
       const userRole = (profile?.role || "employee") as UserRole
 
@@ -121,28 +143,28 @@ export default function AuditLogPage() {
     }
 
     init()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (companyId) {
-      loadLogs()
-    }
+    if (companyId) loadLogs()
   }, [companyId, loadLogs])
 
   const handleExport = async () => {
+    if (!companyId) return
     setExporting(true)
 
     try {
       const csv = await exportAuditLogsAction(companyId, {
-        table_name: tableName || undefined,
-        action: action || undefined,
+        table_name: tableFilter,
+        action: actionFilter,
         is_critical: criticalOnly ? true : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       })
 
       // Download CSV
-      const blob = new Blob([csv], { type: "text/csv" })
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -153,14 +175,14 @@ export default function AuditLogPage() {
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Failed to export:", error)
+    } finally {
+      setExporting(false)
     }
-
-    setExporting(false)
   }
 
   const resetFilters = () => {
-    setTableName("")
-    setAction("")
+    setTableName("all")
+    setAction("all")
     setCriticalOnly(false)
     setStartDate("")
     setEndDate("")
@@ -170,9 +192,7 @@ export default function AuditLogPage() {
   const totalPages = Math.ceil(total / pageSize)
 
   const getActionBadge = (action: string, isCritical: boolean) => {
-    if (isCritical) {
-      return <Badge variant="destructive">{action}</Badge>
-    }
+    if (isCritical) return <Badge variant="destructive">{action}</Badge>
 
     const variants: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
       INSERT: "success",
@@ -199,14 +219,18 @@ export default function AuditLogPage() {
     return names[table] || table
   }
 
+  const safeRecordId = (rid: unknown) => {
+    const s = (rid ?? "").toString()
+    if (!s) return "-"
+    return s.length <= 8 ? s : `${s.slice(0, 8)}...`
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Audit Log</h1>
-          <p className="text-muted-foreground">
-            Track all system activities and changes
-          </p>
+          <p className="text-muted-foreground">Track all system activities and changes</p>
         </div>
         <Button onClick={handleExport} disabled={exporting || logs.length === 0}>
           <Download className="h-4 w-4 mr-2" />
@@ -226,7 +250,7 @@ export default function AuditLogPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Table</Label>
-              <Select value={tableName} onValueChange={(v) => { setTableName(v); setPage(1); }}>
+              <Select value={tableName} onValueChange={(v) => { setTableName(v); setPage(1) }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Tables" />
                 </SelectTrigger>
@@ -242,7 +266,7 @@ export default function AuditLogPage() {
 
             <div className="space-y-2">
               <Label>Action</Label>
-              <Select value={action} onValueChange={(v) => { setAction(v); setPage(1); }}>
+              <Select value={action} onValueChange={(v) => { setAction(v); setPage(1) }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Actions" />
                 </SelectTrigger>
@@ -261,7 +285,7 @@ export default function AuditLogPage() {
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                onChange={(e) => { setStartDate(e.target.value); setPage(1) }}
               />
             </div>
 
@@ -270,7 +294,7 @@ export default function AuditLogPage() {
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                onChange={(e) => { setEndDate(e.target.value); setPage(1) }}
               />
             </div>
 
@@ -280,7 +304,7 @@ export default function AuditLogPage() {
                 <Button
                   variant={criticalOnly ? "default" : "outline"}
                   className="flex-1"
-                  onClick={() => { setCriticalOnly(!criticalOnly); setPage(1); }}
+                  onClick={() => { setCriticalOnly(!criticalOnly); setPage(1) }}
                 >
                   <AlertTriangle className="h-4 w-4 mr-1" />
                   Critical
@@ -305,7 +329,7 @@ export default function AuditLogPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : logs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -319,7 +343,7 @@ export default function AuditLogPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Timestamp (EAT)</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Action</TableHead>
                     <TableHead>Table</TableHead>
@@ -328,38 +352,43 @@ export default function AuditLogPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logs.map((log) => (
-                    <TableRow key={log.id} className={log.is_critical ? "bg-red-50" : ""}>
-                      <TableCell className="text-sm">
-                        <div>
-                          {new Date(log.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          {new Date(log.created_at).toLocaleTimeString()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {(log.user as any)?.email || "System"}
-                      </TableCell>
-                      <TableCell>
-                        {getActionBadge(log.action, log.is_critical)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{formatTableName(log.table_name)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">
-                        {log.record_id.substring(0, 8)}...
-                      </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        {log.new_values && (
-                          <span className="text-xs text-muted-foreground truncate block">
-                            {Object.keys(log.new_values).slice(0, 3).join(", ")}
-                            {Object.keys(log.new_values).length > 3 && "..."}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {logs.map((log) => {
+                    const dt = new Date(log.created_at)
+                    return (
+                      <TableRow key={log.id} className={log.is_critical ? "bg-red-50" : ""}>
+                        <TableCell className="text-sm">
+                          <div>
+                            {dt.toLocaleDateString(undefined, { timeZone: TIMEZONE })}
+                          </div>
+                          <div className="text-muted-foreground text-xs">
+                            {dt.toLocaleTimeString(undefined, { timeZone: TIMEZONE })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {(log.user as any)?.email || "System"}
+                        </TableCell>
+                        <TableCell>
+                          {getActionBadge(log.action, log.is_critical)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{formatTableName(log.table_name)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {safeRecordId(log.record_id)}
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          {log.new_values ? (
+                            <span className="text-xs text-muted-foreground truncate block">
+                              {Object.keys(log.new_values).slice(0, 3).join(", ")}
+                              {Object.keys(log.new_values).length > 3 ? "..." : ""}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
 
