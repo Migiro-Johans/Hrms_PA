@@ -257,7 +257,7 @@ CREATE POLICY "Employees can view own payslips" ON payslips
       JOIN payroll_runs pr ON pr.company_id = u.company_id
       WHERE u.id = auth.uid()
       AND pr.id = payslips.payroll_run_id
-      AND u.role IN ('admin', 'hr', 'accountant')
+  AND u.role IN ('admin', 'hr', 'finance')
     )
   );
 
@@ -272,7 +272,7 @@ CREATE POLICY "Employees can view own P9 records" ON p9_records
       JOIN employees e ON e.company_id = u.company_id
       WHERE u.id = auth.uid()
       AND e.id = p9_records.employee_id
-      AND u.role IN ('admin', 'hr', 'accountant')
+  AND u.role IN ('admin', 'hr', 'finance')
     )
   );
 
@@ -288,27 +288,27 @@ CREATE POLICY "Admin/HR can manage employees" ON employees
     )
   );
 
--- Admin/Accountant can manage payroll
-DROP POLICY IF EXISTS "Admin/Accountant can manage payroll" ON payroll_runs;
-CREATE POLICY "Admin/Accountant can manage payroll" ON payroll_runs
+-- Admin/Finance can manage payroll
+DROP POLICY IF EXISTS "Admin/Finance can manage payroll" ON payroll_runs;
+CREATE POLICY "Admin/Finance can manage payroll" ON payroll_runs
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND u.company_id = payroll_runs.company_id
-      AND u.role IN ('admin', 'accountant')
+      AND u.role IN ('admin', 'finance')
     )
   );
 
-DROP POLICY IF EXISTS "Admin/Accountant can manage payslips" ON payslips;
-CREATE POLICY "Admin/Accountant can manage payslips" ON payslips
+DROP POLICY IF EXISTS "Admin/Finance can manage payslips" ON payslips;
+CREATE POLICY "Admin/Finance can manage payslips" ON payslips
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM users u
       JOIN payroll_runs pr ON pr.company_id = u.company_id
       WHERE u.id = auth.uid()
       AND pr.id = payslips.payroll_run_id
-      AND u.role IN ('admin', 'accountant')
+      AND u.role IN ('admin', 'finance')
     )
   );
 

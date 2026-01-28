@@ -10,15 +10,15 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- If the profile row already exists, do nothing
-  IF EXISTS (SELECT 1 FROM public.users u WHERE u.id = NEW.id) THEN
-    RETURN NEW;
-  END IF;
+	-- If the profile row already exists, do nothing
+	IF EXISTS (SELECT 1 FROM public.users u WHERE u.id = NEW.id) THEN
+		RETURN NEW;
+	END IF;
 
-  INSERT INTO public.users (id, email, role, created_at)
-  VALUES (NEW.id, NEW.email, 'employee', NOW());
+	INSERT INTO public.users (id, email, role, created_at)
+	VALUES (NEW.id, NEW.email, 'employee', NOW());
 
-  RETURN NEW;
+	RETURN NEW;
 END;
 $$;
 
@@ -35,22 +35,20 @@ ALTER TABLE IF EXISTS public.users ENABLE ROW LEVEL SECURITY;
 -- Allow authenticated users to read their own profile
 DROP POLICY IF EXISTS "Users can read own profile" ON public.users;
 CREATE POLICY "Users can read own profile" ON public.users
-  FOR SELECT
-  USING (id = auth.uid());
+	FOR SELECT
+	USING (id = auth.uid());
 
--- Allow authenticated users to update their own profile (optional but useful)
+-- Allow authenticated users to update their own profile (non-privileged fields)
 DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users
-  FOR UPDATE
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
+	FOR UPDATE
+	USING (id = auth.uid())
+	WITH CHECK (id = auth.uid());
 
--- Allow the user to insert their own profile row if missing (supports older flows)
+-- Allow insert for own profile row (mainly for edge cases; trigger does the insert)
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
 CREATE POLICY "Users can insert own profile" ON public.users
-  FOR INSERT
-  WITH CHECK (id = auth.uid());
+	FOR INSERT
+	WITH CHECK (id = auth.uid());
 
--- Note:
--- Company assignment and role assignment should be done by admin/hr flows.
--- The trigger only guarantees the profile row exists so Option A queries won't 403.
+SELECT '005 auth user profile trigger migration completed' as status;
