@@ -562,7 +562,6 @@ CREATE POLICY "Promotion requests manage policy" ON promotion_requests
 
 -- Workflows: Admin, HR configure; all participate
 ALTER TABLE workflow_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workflow_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE approval_actions ENABLE ROW LEVEL SECURITY;
 
@@ -574,18 +573,6 @@ CREATE POLICY "Workflow definitions policy" ON workflow_definitions
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND u.company_id = workflow_definitions.company_id
-    )
-  );
-
-DROP POLICY IF EXISTS "Workflow steps policy" ON workflow_steps;
-CREATE POLICY "Workflow steps policy" ON workflow_steps
-  FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      JOIN workflow_definitions wd ON wd.id = workflow_steps.workflow_id
-      WHERE u.id = auth.uid()
-      AND u.company_id = wd.company_id
     )
   );
 
