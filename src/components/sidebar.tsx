@@ -135,8 +135,19 @@ export function Sidebar({ user }: SidebarProps) {
   const userRole = user?.role || "employee"
   const isLineManager = user?.employee?.is_line_manager || false
 
-  // Show all navigation items to all users (full access for everyone)
-  const filteredNavigation = navigation
+  // Filter navigation based on user role
+  const filteredNavigation = navigation.filter((item) => {
+    // Admin sees everything
+    if (userRole === "admin") return true
+
+    // Check if user's role is in the allowed roles
+    if (item.roles.includes(userRole)) return true
+
+    // Line managers get access to line_manager-specific items
+    if (isLineManager && item.roles.includes("line_manager")) return true
+
+    return false
+  })
 
   return (
     <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
