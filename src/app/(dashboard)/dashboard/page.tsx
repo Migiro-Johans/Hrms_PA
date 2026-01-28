@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
-import { Users, DollarSign, FileText, TrendingUp, Calendar, ClipboardList, Download, Target } from "lucide-react"
+import { Users, DollarSign, FileText, TrendingUp, Calendar, ClipboardList, Download, Target, Calculator } from "lucide-react"
 import { PendingApprovals } from "@/components/dashboard/pending-approvals"
 import { TaskSummary } from "@/components/dashboard/task-summary"
 import { Badge } from "@/components/ui/badge"
@@ -319,6 +319,22 @@ export default async function DashboardPage() {
                   <p className="font-medium">Process Payroll</p>
                   <p className="text-sm text-muted-foreground">
                     Run monthly payroll for all employees
+                  </p>
+                </div>
+              </a>
+            )}
+
+            {/* Manage Other Deductions - for admin and finance */}
+            {["admin", "finance"].includes(userRole) && (
+              <a
+                href="/payroll/deductions"
+                className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
+              >
+                <Calculator className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Manage Other Deductions</p>
+                  <p className="text-sm text-muted-foreground">
+                    Add or update employee deductions
                   </p>
                 </div>
               </a>
