@@ -23,13 +23,14 @@ export default async function DashboardLayout({
     .single()
 
   // Restructure the profile to include employee data in expected format
+  // Note: employees(...) returns an array, so we need to get the first item
   const userProfile = profile ? {
     ...profile,
-    employee: profile.employees ? {
-      id: profile.employees.id,
-      is_line_manager: profile.employees.is_line_manager ?? false,
-      first_name: profile.employees.first_name,
-      last_name: profile.employees.last_name,
+    employee: profile.employees && Array.isArray(profile.employees) && profile.employees.length > 0 ? {
+      id: profile.employees[0].id,
+      is_line_manager: profile.employees[0].is_line_manager ?? false,
+      first_name: profile.employees[0].first_name,
+      last_name: profile.employees[0].last_name,
     } : undefined,
   } : null
 
