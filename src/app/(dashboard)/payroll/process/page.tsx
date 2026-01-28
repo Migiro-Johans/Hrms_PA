@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table"
 import { useToast } from "@/components/ui/use-toast"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { formatCurrency, getMonthName, getDaysInMonth } from "@/lib/utils"
 import { calculatePayroll } from "@/lib/calculations"
 import { MONTHS } from "@/lib/constants"
@@ -47,6 +48,21 @@ interface PayrollPreview {
   calculation: PayrollCalculation
 }
 
+type PayrollRunDeduction = {
+  employee_id: string
+  deduction_type: string
+  label: string | null
+  amount: number
+}
+
+type PayrollRunRecord = {
+  id: string
+  company_id: string
+  month: number
+  year: number
+  status: string
+}
+
 export default function ProcessPayrollPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -60,9 +76,12 @@ export default function ProcessPayrollPage() {
   const [employees, setEmployees] = useState<EmployeeWithSalary[]>([])
   const [preview, setPreview] = useState<PayrollPreview[]>([])
   const [companyId, setCompanyId] = useState<string | null>(null)
+  const [manualDeductions, setManualDeductions] = useState<Record<string, PayrollRunDeduction[]>>({})
+  const [payrollRun, setPayrollRun] = useState<PayrollRunRecord | null>(null)
 
   useEffect(() => {
     loadEmployees()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadEmployees = async () => {
@@ -76,6 +95,33 @@ export default function ProcessPayrollPage() {
     if (profile?.company_id) {
       setCompanyId(profile.company_id)
 
+      // Ensure we have a draft payroll run for this period so Finance deductions can be saved against it
+      const { data: existingRun } = await supabase
+        .from("payroll_runs")
+        .select("id, company_id, month, year, status")
+        .eq("company_id", profile.company_id)
+        .eq("month", month)
+        .eq("year", year)
+        .maybeSingle()
+
+      if (existingRun?.id) {
+        setPayrollRun(existingRun)
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: newRun } = await supabase
+          .from("payroll_runs")
+          .insert({
+            company_id: profile.company_id,
+            month,
+            year,
+            status: "draft",
+            processed_by: user?.id,
+          })
+          .select("id, company_id, month, year, status")
+          .single()
+        if (newRun?.id) setPayrollRun(newRun)
+      }
+
       const { data } = await supabase
         .from("employees")
         .select(`
@@ -87,8 +133,30 @@ export default function ProcessPayrollPage() {
         .eq("status", "active")
 
       setEmployees(data || [])
+
+      // Load saved finance deductions for this payroll run
+      const effectiveRunId = (existingRun?.id || payrollRun?.id) as string | undefined
+      if (effectiveRunId) {
+        const { data: deductions } = await supabase
+          .from("payroll_employee_deductions")
+          .select("employee_id, deduction_type, label, amount")
+          .eq("payroll_run_id", effectiveRunId)
+
+        const map: Record<string, PayrollRunDeduction[]> = {}
+        ;(deductions || []).forEach((d) => {
+          if (!map[d.employee_id]) map[d.employee_id] = []
+          map[d.employee_id].push(d)
+        })
+        setManualDeductions(map)
+      }
     }
   }
+
+  // When month/year changes, reload employees and create/load the draft run
+  useEffect(() => {
+    loadEmployees()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year])
 
   const generatePreview = () => {
     setLoading(true)
@@ -116,13 +184,25 @@ export default function ProcessPayrollPage() {
             otherDeductions[d.deduction_type] = d.amount
           })
 
+        // Merge in finance-added one-off deductions for this payroll run/period (entered below)
+        const extras = manualDeductions[employee.id] || []
+        let extraHelb = 0
+        extras.forEach((d) => {
+          if (d.deduction_type === "HELB") {
+            extraHelb += d.amount
+            return
+          }
+          const key = (d.label || d.deduction_type).trim()
+          otherDeductions[key] = (otherDeductions[key] || 0) + d.amount
+        })
+
         const calculation = calculatePayroll({
           basic_salary: salary.basic_salary,
           car_allowance: salary.car_allowance,
           meal_allowance: salary.meal_allowance,
           telephone_allowance: salary.telephone_allowance,
           housing_allowance: salary.housing_allowance,
-          helb,
+          helb: helb + extraHelb,
           other_deductions: otherDeductions,
           calendar_days: calendarDays,
           days_worked: calendarDays,
@@ -133,6 +213,93 @@ export default function ProcessPayrollPage() {
 
     setPreview(previewData)
     setLoading(false)
+  }
+
+  const setEmployeeDeduction = (
+    employeeId: string,
+    index: number,
+    patch: Partial<PayrollRunDeduction>
+  ) => {
+    setManualDeductions((prev) => {
+      const current = prev[employeeId] || []
+      const next = [...current]
+      next[index] = { ...next[index], ...patch }
+      return { ...prev, [employeeId]: next }
+    })
+  }
+
+  const addEmployeeDeduction = (employeeId: string) => {
+    setManualDeductions((prev) => {
+      const current = prev[employeeId] || []
+      return {
+        ...prev,
+        [employeeId]: [
+          ...current,
+          { employee_id: employeeId, deduction_type: "LOAN", label: "", amount: 0 },
+        ],
+      }
+    })
+  }
+
+  const removeEmployeeDeduction = (employeeId: string, index: number) => {
+    setManualDeductions((prev) => {
+      const current = prev[employeeId] || []
+      const next = current.filter((_, i) => i !== index)
+      return { ...prev, [employeeId]: next }
+    })
+  }
+
+  const saveFinanceDeductions = async () => {
+    if (!payrollRun?.id) {
+      toast({ variant: "destructive", title: "Missing payroll run", description: "Draft payroll run not ready" })
+      return
+    }
+
+    // Flatten and validate
+    const rows: Array<{
+      payroll_run_id: string
+      employee_id: string
+      deduction_type: string
+      label: string | null
+      amount: number
+    }> = []
+
+    Object.entries(manualDeductions).forEach(([employeeId, deducs]) => {
+      deducs
+        .filter((d) => (d.amount || 0) > 0)
+        .forEach((d) => {
+          rows.push({
+            payroll_run_id: payrollRun.id,
+            employee_id: employeeId,
+            deduction_type: d.deduction_type,
+            label: (d.label || "").trim() || null,
+            amount: d.amount,
+          })
+        })
+    })
+
+    // Replace-all strategy to keep it simple and avoid partial mismatches
+    const { error: delErr } = await supabase
+      .from("payroll_employee_deductions")
+      .delete()
+      .eq("payroll_run_id", payrollRun.id)
+
+    if (delErr) {
+      toast({ variant: "destructive", title: "Failed to save", description: delErr.message })
+      return
+    }
+
+    if (rows.length > 0) {
+      const { error: insErr } = await supabase
+        .from("payroll_employee_deductions")
+        .insert(rows)
+      if (insErr) {
+        toast({ variant: "destructive", title: "Failed to save", description: insErr.message })
+        return
+      }
+    }
+
+    toast({ title: "Saved", description: "Finance deductions saved for this payroll run" })
   }
 
   const processPayroll = async () => {
@@ -150,34 +317,26 @@ export default function ProcessPayrollPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
-      // Create payroll run
-      const { data: payrollRun, error: runError } = await supabase
+      // Ensure deductions are saved before processing
+      await saveFinanceDeductions()
+
+      if (!payrollRun?.id) {
+        toast({ variant: "destructive", title: "Missing payroll run", description: "Draft payroll run not ready" })
+        return
+      }
+
+      // Mark payroll run as processing
+      const { error: runError } = await supabase
         .from("payroll_runs")
-        .insert({
-          company_id: companyId,
-          month,
-          year,
+        .update({
           status: "processing",
           processed_by: user?.id,
           processed_at: new Date().toISOString(),
         })
-        .select()
-        .single()
+        .eq("id", payrollRun.id)
 
       if (runError) {
-        if (runError.code === "23505") {
-          toast({
-            variant: "destructive",
-            title: "Duplicate",
-            description: `Payroll for ${getMonthName(month)} ${year} already exists`,
-          })
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: runError.message,
-          })
-        }
+        toast({ variant: "destructive", title: "Error", description: runError.message })
         return
       }
 
@@ -323,6 +482,124 @@ export default function ProcessPayrollPage() {
 
       {preview.length > 0 && (
         <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Finance Deductions (One-off)</CardTitle>
+              <CardDescription>
+                Add employee-specific deductions for this payroll period before submitting. These will be included in net pay.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="text-sm text-muted-foreground">
+                  Draft payroll run: <span className="font-medium">{payrollRun?.id ? "Ready" : "Loading..."}</span>
+                </div>
+                <Button variant="outline" onClick={saveFinanceDeductions} disabled={!payrollRun?.id}>
+                  Save deductions
+                </Button>
+              </div>
+              <div className="space-y-6">
+                {employees
+                  .filter((emp) => emp.salary_structures?.length > 0)
+                  .map((emp) => (
+                    <div key={emp.id} className="rounded-lg border p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="font-medium">
+                            {emp.first_name} {emp.last_name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">{emp.staff_id}</div>
+                        </div>
+                        <Button variant="outline" onClick={() => addEmployeeDeduction(emp.id)}>
+                          Add deduction
+                        </Button>
+                      </div>
+
+                      {(manualDeductions[emp.id] || []).length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {(manualDeductions[emp.id] || []).map((d, idx) => (
+                            <div
+                              key={`${emp.id}-${idx}`}
+                              className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end"
+                            >
+                              <div className="space-y-2">
+                                <Label>Type</Label>
+                                <Select
+                                  value={d.deduction_type}
+                                  onValueChange={(value) =>
+                                    setEmployeeDeduction(emp.id, idx, {
+                                      deduction_type: value,
+                                      // Suggest a label for known types
+                                      label:
+                                        value === "HELB"
+                                          ? "HELB"
+                                          : value === "WELFARE"
+                                            ? "Welfare"
+                                            : value === "LOAN"
+                                              ? "Loan"
+                                              : d.label,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="HELB">HELB</SelectItem>
+                                    <SelectItem value="LOAN">Company Loan</SelectItem>
+                                    <SelectItem value="WELFARE">Welfare</SelectItem>
+                                    <SelectItem value="OTHER">Other</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>Label</Label>
+                                <Input
+                                  placeholder="e.g. Sacco loan"
+                                  value={d.label || ""}
+                                  onChange={(e) =>
+                                    setEmployeeDeduction(emp.id, idx, { label: e.target.value })
+                                  }
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Amount (KES)</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  value={Number.isFinite(d.amount) ? d.amount : 0}
+                                  onChange={(e) =>
+                                    setEmployeeDeduction(emp.id, idx, {
+                                      amount: Number(e.target.value || 0),
+                                    })
+                                }
+                                />
+                              </div>
+
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => removeEmployeeDeduction(emp.id, idx)}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-sm text-muted-foreground">
+                            After updating deductions, click “Generate Preview” again to refresh totals.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Payroll Summary</CardTitle>
