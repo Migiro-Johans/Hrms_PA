@@ -135,6 +135,13 @@ export function Sidebar({ user }: SidebarProps) {
   const userRole = user?.role || "employee"
   const isLineManager = user?.employee?.is_line_manager || false
 
+  // Debug: Log the user role
+  console.log('Sidebar Debug:', {
+    userRole,
+    isLineManager,
+    fullUser: user
+  })
+
   // Filter navigation based on user role
   const filteredNavigation = navigation.filter((item) => {
     // Admin sees everything
@@ -148,6 +155,8 @@ export function Sidebar({ user }: SidebarProps) {
 
     return false
   })
+
+  console.log('Filtered Navigation Count:', filteredNavigation.length)
 
   return (
     <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
