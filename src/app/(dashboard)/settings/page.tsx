@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Shield, Building2, Bell, Database, UserPlus, Layers } from "lucide-react"
+import { Users, Shield, Building2, Bell, Database, UserPlus, Layers, Calendar } from "lucide-react"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -44,6 +44,13 @@ export default async function SettingsPage() {
       icon: Layers,
       href: "/settings/departments",
       color: "bg-teal-50 text-teal-600",
+    },
+    {
+      title: "Holiday Calendar",
+      description: "Maintain holidays for leave calculations",
+      icon: Calendar,
+      href: "/settings/holidays",
+      color: "bg-indigo-50 text-indigo-600",
     },
     {
       title: "Security",

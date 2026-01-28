@@ -216,32 +216,38 @@ ALTER TABLE IF EXISTS p9_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;
 
 -- Create Row Level Security Policies
-CREATE POLICY IF NOT EXISTS "Users can view own company" ON companies
+DROP POLICY IF EXISTS "Users can view own company" ON companies;
+CREATE POLICY "Users can view own company" ON companies
   FOR SELECT USING (
     id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Users can view own company departments" ON departments;
 CREATE POLICY "Users can view own company departments" ON departments
   FOR SELECT USING (
     company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Users can view own company employees" ON employees;
 CREATE POLICY "Users can view own company employees" ON employees
   FOR SELECT USING (
     company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Users can view own company pay grades" ON pay_grades;
 CREATE POLICY "Users can view own company pay grades" ON pay_grades
   FOR SELECT USING (
     company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Users can view own company payroll runs" ON payroll_runs;
 CREATE POLICY "Users can view own company payroll runs" ON payroll_runs
   FOR SELECT USING (
     company_id IN (SELECT company_id FROM users WHERE id = auth.uid())
   );
 
 -- Employees can only see their own payslips
+DROP POLICY IF EXISTS "Employees can view own payslips" ON payslips;
 CREATE POLICY "Employees can view own payslips" ON payslips
   FOR SELECT USING (
     employee_id IN (SELECT employee_id FROM users WHERE id = auth.uid())
@@ -256,6 +262,7 @@ CREATE POLICY "Employees can view own payslips" ON payslips
   );
 
 -- Employees can only see their own P9 records
+DROP POLICY IF EXISTS "Employees can view own P9 records" ON p9_records;
 CREATE POLICY "Employees can view own P9 records" ON p9_records
   FOR SELECT USING (
     employee_id IN (SELECT employee_id FROM users WHERE id = auth.uid())
@@ -270,6 +277,7 @@ CREATE POLICY "Employees can view own P9 records" ON p9_records
   );
 
 -- Admin/HR can manage employees
+DROP POLICY IF EXISTS "Admin/HR can manage employees" ON employees;
 CREATE POLICY "Admin/HR can manage employees" ON employees
   FOR ALL USING (
     EXISTS (
@@ -281,6 +289,7 @@ CREATE POLICY "Admin/HR can manage employees" ON employees
   );
 
 -- Admin/Accountant can manage payroll
+DROP POLICY IF EXISTS "Admin/Accountant can manage payroll" ON payroll_runs;
 CREATE POLICY "Admin/Accountant can manage payroll" ON payroll_runs
   FOR ALL USING (
     EXISTS (
@@ -291,6 +300,7 @@ CREATE POLICY "Admin/Accountant can manage payroll" ON payroll_runs
     )
   );
 
+DROP POLICY IF EXISTS "Admin/Accountant can manage payslips" ON payslips;
 CREATE POLICY "Admin/Accountant can manage payslips" ON payslips
   FOR ALL USING (
     EXISTS (
@@ -303,6 +313,7 @@ CREATE POLICY "Admin/Accountant can manage payslips" ON payslips
   );
 
 -- Users can view own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
 CREATE POLICY "Users can view own profile" ON users
   FOR SELECT USING (id = auth.uid());
 
@@ -316,10 +327,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
 CREATE TRIGGER update_companies_updated_at
   BEFORE UPDATE ON companies
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_employees_updated_at ON employees;
 CREATE TRIGGER update_employees_updated_at
   BEFORE UPDATE ON employees
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -365,6 +378,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to auto-create P9 records
+DROP TRIGGER IF EXISTS create_p9_on_payslip_insert ON payslips;
 CREATE TRIGGER create_p9_on_payslip_insert
   AFTER INSERT OR UPDATE ON payslips
   FOR EACH ROW EXECUTE FUNCTION create_p9_from_payslip();

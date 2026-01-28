@@ -4,6 +4,77 @@ import { createClient } from '@/lib/supabase/server';
 import { LeaveType, LeaveBalance, LeaveRequest } from '@/types';
 import { createApprovalRequest } from './workflow';
 
+function isWeekend(date: Date): boolean {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+}
+
+function toISODate(date: Date): string {
+    // Convert to YYYY-MM-DD in local time (safe for date-only comparisons)
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+async function getCompanyHolidayDates(params: {
+    companyId: string;
+    startDate: string;
+    endDate: string;
+}): Promise<Set<string>> {
+    const supabase = await createClient();
+
+    // If holidays table isn't present in the DB yet, fall back to no holidays.
+    const { data, error } = await supabase
+        .from('holidays')
+        .select('date')
+        .eq('company_id', params.companyId)
+        .gte('date', params.startDate)
+        .lte('date', params.endDate);
+
+    if (error) {
+        return new Set();
+    }
+
+    return new Set((data || []).map((h: any) => String(h.date).slice(0, 10)));
+}
+
+async function calculateWorkingDays(params: {
+    companyId: string;
+    startDate: string;
+    endDate: string;
+}): Promise<number> {
+    const start = new Date(params.startDate);
+    const end = new Date(params.endDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        throw new Error('Invalid leave dates supplied');
+    }
+
+    if (end < start) {
+        throw new Error('End date cannot be before start date');
+    }
+
+    const holidays = await getCompanyHolidayDates(params);
+
+    // Iterate day-by-day (inclusive) and count weekdays not in holidays.
+    let days = 0;
+    const cursor = new Date(start);
+    // Normalize time
+    cursor.setHours(12, 0, 0, 0);
+    end.setHours(12, 0, 0, 0);
+
+    while (cursor <= end) {
+        const iso = toISODate(cursor);
+        if (!isWeekend(cursor) && !holidays.has(iso)) {
+            days += 1;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return days;
+}
+
 /**
  * Get available leave types for a company
  */
@@ -56,11 +127,16 @@ export async function createLeaveRequest(params: {
 
     const { employeeId, leaveTypeId, startDate, endDate, reason, companyId } = params;
 
-    // Calculate days (simple difference for now, in a real app we'd exclude weekends/holidays)
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    // Calculate working days requested (exclude weekends and configured holidays)
+    const diffDays = await calculateWorkingDays({
+        companyId,
+        startDate,
+        endDate,
+    });
+
+    if (diffDays <= 0) {
+        throw new Error('Selected dates include no working days (weekends/holidays are excluded).');
+    }
 
     // 1. Create the leave request record
     const { data: request, error: requestError } = await supabase
