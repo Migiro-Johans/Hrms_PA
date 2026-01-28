@@ -324,8 +324,8 @@ export default async function DashboardPage() {
               </a>
             )}
 
-            {/* Manage Other Deductions - for admin and finance */}
-            {["admin", "finance"].includes(userRole) && (
+            {/* Manage Other Deductions - for admin, hr, and finance */}
+            {["admin", "hr", "finance"].includes(userRole) && (
               <a
                 href="/payroll/deductions"
                 className="flex items-center gap-2 rounded-lg border p-3 hover:bg-gray-50"
