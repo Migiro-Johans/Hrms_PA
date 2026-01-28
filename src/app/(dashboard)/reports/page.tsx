@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart3, FileText, Users, DollarSign } from "lucide-react"
+import { BarChart3, FileText, Users, DollarSign, Calendar } from "lucide-react"
 
 const reports = [
   {
@@ -20,6 +20,12 @@ const reports = [
     description: "Employee headcount and demographics",
     href: "/reports/employees",
     icon: Users,
+  },
+  {
+    name: "Leave Reports",
+    description: "Leave balances, history, and analytics for all employees",
+    href: "/reports/leave",
+    icon: Calendar,
   },
   {
     name: "Statutory Reports",
