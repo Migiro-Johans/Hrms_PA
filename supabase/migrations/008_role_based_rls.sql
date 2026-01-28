@@ -583,10 +583,10 @@ CREATE POLICY "Approval requests policy" ON approval_requests
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
+      AND u.company_id = approval_requests.company_id
       AND (
         u.role IN ('admin', 'hr', 'finance', 'management')
-        OR u.employee_id = approval_requests.requested_by
-        OR u.employee_id = approval_requests.current_approver_id
+        OR u.employee_id = approval_requests.requester_id
       )
     )
   );
