@@ -22,6 +22,9 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single()
 
+  // Debug: Log the raw profile data
+  console.log('RAW PROFILE DATA:', JSON.stringify(profile, null, 2))
+
   // Restructure the profile to include employee data in expected format
   // Note: employees(...) returns an array, so we need to get the first item
   const userProfile = profile ? {
@@ -33,6 +36,8 @@ export default async function DashboardLayout({
       last_name: profile.employees[0].last_name,
     } : undefined,
   } : null
+
+  console.log('PROCESSED USER PROFILE:', JSON.stringify(userProfile, null, 2))
 
   return (
     <div className="min-h-screen bg-gray-50">
