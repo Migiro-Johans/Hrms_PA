@@ -63,14 +63,13 @@ BEGIN
       INSERT INTO employees (
         company_id,
         department_id,
-        employee_number,
+        staff_id,
         first_name,
         last_name,
         email,
-        position,
-        employment_status,
-        employment_type,
-        date_of_joining,
+        job_role,
+        status,
+        employment_date,
         is_line_manager
       )
       VALUES (
@@ -82,7 +81,6 @@ BEGIN
         v_user_record.email,
         v_user_record.position,
         'active',
-        'full_time',
         CURRENT_DATE,
         v_user_record.is_line_manager
       )
@@ -99,7 +97,7 @@ BEGIN
       UPDATE employees
       SET first_name = v_user_record.first_name,
           last_name = v_user_record.last_name,
-          position = v_user_record.position,
+          job_role = v_user_record.position,
           is_line_manager = v_user_record.is_line_manager,
           company_id = v_company_id,
           department_id = v_department_id
