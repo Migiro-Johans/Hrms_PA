@@ -251,7 +251,7 @@ export default async function DepartmentDetailPage({ params }: PageProps) {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>{emp.job_title || "-"}</TableCell>
+                    <TableCell>{emp.job_role || "-"}</TableCell>
                     <TableCell className="text-muted-foreground">{emp.email || "-"}</TableCell>
                     <TableCell>
                       {emp.is_line_manager && (

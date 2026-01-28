@@ -113,7 +113,7 @@ export async function getDepartmentEmployees(departmentId: string): Promise<any[
 
   const { data, error } = await supabase
     .from('employees')
-    .select('id, first_name, last_name, job_title, email, is_line_manager, status')
+    .select('id, first_name, last_name, job_role, email, is_line_manager, status')
     .eq('department_id', departmentId)
     .eq('status', 'active')
     .order('first_name');

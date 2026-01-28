@@ -69,7 +69,7 @@ interface UserWithEmployee {
     first_name: string
     last_name: string
     staff_id?: string
-    job_title?: string
+    job_role?: string
     is_line_manager: boolean
     department?: {
       id: string

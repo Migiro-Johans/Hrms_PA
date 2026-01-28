@@ -18,7 +18,12 @@ export async function GET() {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ 
+        error: error.message,
+        errorDetails: error,
+        hint: error.hint,
+        details: error.details,
+      }, { status: 500 })
     }
 
     // Check if employees is an array
