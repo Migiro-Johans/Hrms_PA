@@ -121,9 +121,9 @@ CREATE POLICY "Salary structures view policy" ON salary_structures
   USING (
     EXISTS (
       SELECT 1 FROM users u
-      JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = salary_structures.employee_id
       WHERE u.id = auth.uid()
-      AND e.company_id = salary_structures.company_id
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'finance')
         OR u.employee_id = salary_structures.employee_id
@@ -137,9 +137,9 @@ CREATE POLICY "Salary structures manage policy" ON salary_structures
   USING (
     EXISTS (
       SELECT 1 FROM users u
-      JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = salary_structures.employee_id
       WHERE u.id = auth.uid()
-      AND e.company_id = salary_structures.company_id
+      AND u.company_id = emp.company_id
       AND u.role IN ('admin', 'hr', 'finance')
     )
   );
@@ -153,9 +153,9 @@ CREATE POLICY "Recurring deductions policy" ON recurring_deductions
   USING (
     EXISTS (
       SELECT 1 FROM users u
-      JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = recurring_deductions.employee_id
       WHERE u.id = auth.uid()
-      AND e.company_id = recurring_deductions.company_id
+      AND u.company_id = emp.company_id
       AND u.role IN ('admin', 'hr', 'finance')
     )
   );
@@ -230,7 +230,9 @@ CREATE POLICY "P9 records view policy" ON p9_records
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = p9_records.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'finance', 'management')
         OR u.employee_id = p9_records.employee_id
@@ -244,7 +246,9 @@ CREATE POLICY "P9 records manage policy" ON p9_records
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = p9_records.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND u.role IN ('admin', 'hr', 'finance')
     )
   );
@@ -272,7 +276,9 @@ CREATE POLICY "Leave balances view policy" ON leave_balances
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = leave_balances.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
         OR u.employee_id = leave_balances.employee_id
@@ -286,7 +292,9 @@ CREATE POLICY "Leave balances manage policy" ON leave_balances
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = leave_balances.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND u.role IN ('admin', 'hr')
     )
   );
@@ -301,15 +309,13 @@ CREATE POLICY "Leave requests view policy" ON leave_requests
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = leave_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
         OR u.employee_id = leave_requests.employee_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = leave_requests.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -321,15 +327,13 @@ CREATE POLICY "Leave requests manage policy" ON leave_requests
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = leave_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr')
         OR u.employee_id = leave_requests.employee_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = leave_requests.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -372,15 +376,13 @@ CREATE POLICY "Per diem requests view policy" ON per_diem_requests
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = per_diem_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'finance', 'management')
         OR u.employee_id = per_diem_requests.employee_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = per_diem_requests.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -392,15 +394,13 @@ CREATE POLICY "Per diem requests manage policy" ON per_diem_requests
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = per_diem_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'finance')
         OR u.employee_id = per_diem_requests.employee_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = per_diem_requests.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -416,13 +416,14 @@ CREATE POLICY "Tasks view policy" ON tasks
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = tasks.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
-        OR u.employee_id = tasks.employee_id
+        OR u.employee_id = tasks.assigned_to
         OR u.employee_id = tasks.assigned_by
         OR (e.is_line_manager = true AND EXISTS (
           SELECT 1 FROM employees emp
-          WHERE emp.id = tasks.employee_id
+          WHERE emp.id = tasks.assigned_to
           AND emp.department_id = e.department_id
         ))
       )
@@ -437,13 +438,14 @@ CREATE POLICY "Tasks manage policy" ON tasks
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = tasks.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
-        OR u.employee_id = tasks.employee_id
+        OR u.employee_id = tasks.assigned_to
         OR u.employee_id = tasks.assigned_by
         OR (e.is_line_manager = true AND EXISTS (
           SELECT 1 FROM employees emp
-          WHERE emp.id = tasks.employee_id
+          WHERE emp.id = tasks.assigned_to
           AND emp.department_id = e.department_id
         ))
       )
@@ -477,16 +479,14 @@ CREATE POLICY "Performance reviews view policy" ON performance_reviews
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = performance_reviews.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
         OR u.employee_id = performance_reviews.employee_id
         OR u.employee_id = performance_reviews.reviewer_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = performance_reviews.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -498,15 +498,13 @@ CREATE POLICY "Performance reviews manage policy" ON performance_reviews
     EXISTS (
       SELECT 1 FROM users u
       LEFT JOIN employees e ON e.id = u.employee_id
+      JOIN employees emp ON emp.id = performance_reviews.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
         OR u.employee_id = performance_reviews.reviewer_id
-        OR (e.is_line_manager = true AND EXISTS (
-          SELECT 1 FROM employees emp
-          WHERE emp.id = performance_reviews.employee_id
-          AND emp.department_id = e.department_id
-        ))
+        OR (e.is_line_manager = true AND e.department_id = emp.department_id)
       )
     )
   );
@@ -520,7 +518,9 @@ CREATE POLICY "Promotion requests view policy" ON promotion_requests
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = promotion_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND (
         u.role IN ('admin', 'hr', 'management')
         OR u.employee_id = promotion_requests.employee_id
@@ -534,27 +534,31 @@ CREATE POLICY "Promotion requests manage policy" ON promotion_requests
   USING (
     EXISTS (
       SELECT 1 FROM users u
+      JOIN employees emp ON emp.id = promotion_requests.employee_id
       WHERE u.id = auth.uid()
+      AND u.company_id = emp.company_id
       AND u.role IN ('admin', 'hr', 'management')
     )
   );
 
--- Documents: Based on document type and ownership
-ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+-- Documents: Based on document type and ownership (skip if table doesn't exist)
+-- ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Documents policy" ON documents;
-CREATE POLICY "Documents policy" ON documents
-  FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = auth.uid()
-      AND (
-        u.role IN ('admin', 'hr')
-        OR u.employee_id = documents.employee_id
-      )
-    )
-  );
+-- DROP POLICY IF EXISTS "Documents policy" ON documents;
+-- CREATE POLICY "Documents policy" ON documents
+--   FOR ALL
+--   USING (
+--     EXISTS (
+--       SELECT 1 FROM users u
+--       JOIN employees emp ON emp.id = documents.employee_id
+--       WHERE u.id = auth.uid()
+--       AND u.company_id = emp.company_id
+--       AND (
+--         u.role IN ('admin', 'hr')
+--         OR u.employee_id = documents.employee_id
+--       )
+--     )
+--   );
 
 -- Workflows: Admin, HR configure; all participate
 ALTER TABLE workflow_definitions ENABLE ROW LEVEL SECURITY;
@@ -624,9 +628,10 @@ CREATE POLICY "Notification queue policy" ON notification_queue
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
+      AND u.company_id = notification_queue.company_id
       AND (
         u.role IN ('admin', 'hr')
-        OR u.employee_id = notification_queue.employee_id
+        OR u.employee_id = notification_queue.recipient_id
       )
     )
   );
