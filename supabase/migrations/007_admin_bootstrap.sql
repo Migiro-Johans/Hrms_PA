@@ -18,8 +18,8 @@ DECLARE
     -- Replace these values:
     --   v_user_id:    auth.users.id (UUID)
     --   v_company_id: companies.id  (UUID)
-    v_user_id UUID := '00000000-0000-0000-0000-000000000000';
-    v_company_id UUID := '00000000-0000-0000-0000-000000000000';
+    v_user_id UUID := '89e5b6ea-2c36-4689-95a3-3ac27eb3bb2c';
+    v_company_id UUID := 'c9d089fe-c1a1-4fb1-b49f-eb7c1392d583';
 BEGIN
     -- Basic guardrails
     IF v_user_id = '00000000-0000-0000-0000-000000000000' THEN
@@ -30,15 +30,58 @@ BEGIN
         RAISE EXCEPTION 'Set v_company_id to the target companies.id before running.';
     END IF;
 
-    -- Promote existing user to admin and ensure company_id is set
-    UPDATE public.users
-    SET role = 'admin',
-            company_id = COALESCE(company_id, v_company_id)
-    WHERE id = v_user_id;
+    -- Ensure an employee record exists for this user
+    DECLARE
+        v_employee_id UUID;
+        v_email TEXT;
+    BEGIN
+        -- Get user email
+        SELECT email INTO v_email FROM auth.users WHERE id = v_user_id;
+        
+        IF v_email IS NULL THEN
+            RAISE EXCEPTION 'No auth.users record found for id=%', v_user_id;
+        END IF;
 
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'No row found in public.users for id=% (ensure the user has signed up / trigger ran).', v_user_id;
-    END IF;
+        -- Check if employee exists
+        SELECT id INTO v_employee_id 
+        FROM employees 
+        WHERE company_id = v_company_id 
+          AND (email = v_email OR id = (SELECT employee_id FROM public.users WHERE id = v_user_id))
+        LIMIT 1;
+
+        -- If no employee, create one
+        IF v_employee_id IS NULL THEN
+            INSERT INTO employees (
+                company_id,
+                staff_id,
+                first_name,
+                last_name,
+                email,
+                employment_date,
+                status
+            ) VALUES (
+                v_company_id,
+                'ADMIN-' || substring(v_user_id::text from 1 for 8),
+                'Admin',
+                'User',
+                v_email,
+                NOW(),
+                'active'
+            )
+            RETURNING id INTO v_employee_id;
+        END IF;
+
+        -- Promote existing user to admin and link employee
+        UPDATE public.users
+        SET role = 'admin',
+            company_id = v_company_id,
+            employee_id = v_employee_id
+        WHERE id = v_user_id;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'No row found in public.users for id=% (ensure the user has signed up / trigger ran).', v_user_id;
+        END IF;
+    END;
 END $$;
 
 SELECT '007 admin bootstrap completed' as status;
