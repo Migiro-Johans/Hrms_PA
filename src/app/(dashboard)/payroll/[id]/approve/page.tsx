@@ -19,6 +19,7 @@ import { ApprovalTimeline } from "@/components/approval-timeline"
 import { useToast } from "@/components/ui/use-toast"
 import { formatCurrency, getMonthName } from "@/lib/utils"
 import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { processApprovalAction, getApprovalStatusAction } from "@/lib/actions/workflow"
 import type { PayrollRun, UserRole } from "@/types"
 
 interface PageProps {
@@ -34,6 +35,8 @@ export default function PayrollApprovePage({ params }: PageProps) {
   const [payrollRun, setPayrollRun] = useState<PayrollRun | null>(null)
   const [userRole, setUserRole] = useState<UserRole>("employee")
   const [currentUserId, setCurrentUserId] = useState<string>("")
+  const [currentEmployeeId, setCurrentEmployeeId] = useState<string>("")
+  const [approvalRequestId, setApprovalRequestId] = useState<string>("")
   const [totals, setTotals] = useState({ gross: 0, net: 0, paye: 0, nssf: 0, shif: 0, ahl: 0 })
 
   // Approval state
@@ -59,6 +62,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
       .single()
 
     setUserRole((profile?.role || "employee") as UserRole)
+    setCurrentEmployeeId(profile?.employee_id || "")
 
     // Get payroll run
     const { data, error } = await supabase
@@ -85,6 +89,12 @@ export default function PayrollApprovePage({ params }: PageProps) {
     }
 
     setPayrollRun(data as PayrollRun)
+
+    // Get approval request for this payroll
+    const approvalStatus = await getApprovalStatusAction("payroll", params.id)
+    if (approvalStatus.data?.id) {
+      setApprovalRequestId(approvalStatus.data.id)
+    }
 
     // Calculate totals
     const calculatedTotals = data.payslips?.reduce(
@@ -161,6 +171,21 @@ export default function PayrollApprovePage({ params }: PageProps) {
         .eq("id", params.id)
 
       if (error) throw error
+
+      // Process the approval request workflow
+      if (approvalRequestId && currentEmployeeId) {
+        try {
+          await processApprovalAction({
+            requestId: approvalRequestId,
+            approverId: currentEmployeeId,
+            action: action === "approve" ? "approved" : "rejected",
+            comments: comments.trim() || (action === "approve" ? "Approved" : "Rejected"),
+          })
+        } catch (workflowError) {
+          console.error("Failed to process workflow approval:", workflowError)
+          // Don't fail the entire approval if workflow update fails
+        }
+      }
 
       toast({
         title: action === "approve" ? "Payroll Approved" : "Payroll Rejected",

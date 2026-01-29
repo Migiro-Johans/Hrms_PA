@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { formatCurrency, getMonthName, getDaysInMonth } from "@/lib/utils"
 import { calculatePayroll } from "@/lib/calculations"
 import { MONTHS } from "@/lib/constants"
+import { createApprovalRequestAction } from "@/lib/actions/workflow"
 import type { Employee, PayrollCalculation } from "@/types"
 
 interface EmployeeWithSalary extends Employee {
@@ -76,6 +77,7 @@ export default function ProcessPayrollPage() {
   const [employees, setEmployees] = useState<EmployeeWithSalary[]>([])
   const [preview, setPreview] = useState<PayrollPreview[]>([])
   const [companyId, setCompanyId] = useState<string | null>(null)
+  const [employeeId, setEmployeeId] = useState<string | null>(null)
   const [manualDeductions, setManualDeductions] = useState<Record<string, PayrollRunDeduction[]>>({})
   const [payrollRun, setPayrollRun] = useState<PayrollRunRecord | null>(null)
 
@@ -88,12 +90,13 @@ export default function ProcessPayrollPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: profile } = await supabase
       .from("users")
-      .select("company_id")
+      .select("company_id, employee_id")
       .eq("id", user?.id)
       .single()
 
     if (profile?.company_id) {
       setCompanyId(profile.company_id)
+      setEmployeeId(profile.employee_id)
 
       // Ensure we have a draft payroll run for this period so Finance deductions can be saved against it
       const { data: existingRun } = await supabase
@@ -407,6 +410,21 @@ export default function ProcessPayrollPage() {
         .from("payroll_runs")
         .update({ status: "finance_pending" })
         .eq("id", payrollRun.id)
+
+      // Create approval request for Finance team
+      if (companyId && employeeId) {
+        try {
+          await createApprovalRequestAction({
+            companyId,
+            entityType: "payroll",
+            entityId: payrollRun.id,
+            requesterId: employeeId,
+          })
+        } catch (error) {
+          console.error("Failed to create approval request:", error)
+          // Don't fail the whole process if approval request creation fails
+        }
+      }
 
       toast({
         title: "Payroll Submitted for Reconciliation",

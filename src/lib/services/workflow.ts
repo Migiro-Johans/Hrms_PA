@@ -86,7 +86,7 @@ export async function createApprovalRequest(
   if (entityType === 'payroll') {
     await supabase
       .from('payroll_runs')
-      .update({ status: 'hr_pending' })
+      .update({ status: 'finance_pending' })
       .eq('id', entityId);
   } else if (entityType === 'leave') {
     await supabase
@@ -189,18 +189,16 @@ export async function processApproval(
     const updateData: Record<string, unknown> = {};
 
     if (newStatus === 'rejected') {
-      // Step 1 = Finance, Step 2 = HR, Step 3 = Management
-      if (currentStep === 2) {
-        payrollStatus = 'hr_rejected';
-      } else if (currentStep === 3) {
+      // Step 1 = Finance, Step 2 = Management
+      if (currentStep === 1) {
+        payrollStatus = 'finance_rejected';
+      } else if (currentStep === 2) {
         payrollStatus = 'mgmt_rejected';
-      } else {
-        payrollStatus = 'hr_rejected'; // Default fallback
       }
       updateData.rejection_comments = comments;
     } else if (newStatus === 'approved') {
       payrollStatus = 'approved';
-      // Record management approval
+      // Record management approval (final step)
       updateData.management_approved_by = approverId;
       updateData.management_approved_at = new Date().toISOString();
       updateData.approved_by = approverId;
@@ -208,14 +206,10 @@ export async function processApproval(
     } else {
       // Pending next step
       if (newStep === 2) {
-        payrollStatus = 'hr_pending';
-      } else if (newStep === 3) {
         payrollStatus = 'mgmt_pending';
-        // Record HR approval when moving to management step
-        updateData.hr_approved_by = approverId;
-        updateData.hr_approved_at = new Date().toISOString();
-      } else {
-        payrollStatus = 'mgmt_pending';
+        // Record Finance approval when moving to management step
+        updateData.finance_approved_by = approverId;
+        updateData.finance_approved_at = new Date().toISOString();
       }
     }
 
@@ -337,6 +331,8 @@ export async function getPendingApprovalsForUser(
 ): Promise<ApprovalRequest[]> {
   const supabase = await createClient();
 
+  console.log('[getPendingApprovalsForUser] Called with:', { companyId, userId, userRole, employeeId, isLineManager });
+
   // Get all pending requests for the company
   const { data: requests, error } = await supabase
     .from('approval_requests')
@@ -346,6 +342,18 @@ export async function getPendingApprovalsForUser(
     .eq('company_id', companyId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
+
+  console.log('[getPendingApprovalsForUser] Query results:', { count: requests?.length, error: error?.message });
+  
+  if (requests && requests.length > 0) {
+    console.log('[getPendingApprovalsForUser] First request:', {
+      id: requests[0].id,
+      entity_type: requests[0].entity_type,
+      current_step: requests[0].current_step,
+      status: requests[0].status,
+      workflow_steps: requests[0].workflow_definitions?.steps
+    });
+  }
 
   if (error || !requests) {
     return [];
@@ -357,6 +365,15 @@ export async function getPendingApprovalsForUser(
     const currentStep = workflow?.steps?.find(
       (s) => s.order === request.current_step
     );
+
+    console.log('[getPendingApprovalsForUser] Checking request:', {
+      requestId: request.id,
+      entityType: request.entity_type,
+      currentStepOrder: request.current_step,
+      currentStepRole: currentStep?.role,
+      userRole: userRole,
+      matches: currentStep?.role === userRole
+    });
 
     if (!currentStep) return false;
 
@@ -373,6 +390,12 @@ export async function getPendingApprovalsForUser(
     if (userRole === 'admin') return true;
 
     return false;
+  });
+
+  console.log('[getPendingApprovalsForUser] Filtered results:', { 
+    totalRequests: requests.length, 
+    pendingForUser: pendingForUser.length,
+    requestIds: pendingForUser.map(r => ({ id: r.id, type: r.entity_type }))
   });
 
   return pendingForUser as ApprovalRequest[];

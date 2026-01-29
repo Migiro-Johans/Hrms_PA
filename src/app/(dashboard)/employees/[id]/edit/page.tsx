@@ -66,13 +66,20 @@ export default function EditEmployeePage() {
     try {
       const { data, error } = await supabase
         .from("employees")
-        .select("*")
+        .select("*, salary_structures(*)")
         .eq("id", employeeId)
         .single()
 
       if (error) throw error
 
       if (data) {
+        // Get the most recent salary structure by effective_date
+        const salaryStructure = Array.isArray(data.salary_structures) 
+          ? data.salary_structures.sort((a: any, b: any) => 
+              new Date(b.effective_date).getTime() - new Date(a.effective_date).getTime()
+            )[0]
+          : data.salary_structures
+
         setFormData({
           staff_id: data.staff_id || "",
           first_name: data.first_name || "",
@@ -89,11 +96,11 @@ export default function EditEmployeePage() {
           nhif_number: data.nhif_number || "",
           bank_name: data.bank_name || "",
           account_number: data.account_number || "",
-          basic_salary: data.basic_salary?.toString() || "",
-          car_allowance: data.car_allowance?.toString() || "",
-          meal_allowance: data.meal_allowance?.toString() || "",
-          telephone_allowance: data.telephone_allowance?.toString() || "",
-          housing_allowance: data.housing_allowance?.toString() || "",
+          basic_salary: salaryStructure?.basic_salary?.toString() || "",
+          car_allowance: salaryStructure?.car_allowance?.toString() || "",
+          meal_allowance: salaryStructure?.meal_allowance?.toString() || "",
+          telephone_allowance: salaryStructure?.telephone_allowance?.toString() || "",
+          housing_allowance: salaryStructure?.housing_allowance?.toString() || "",
           status: data.status || "active",
         })
       }
@@ -140,7 +147,8 @@ export default function EditEmployeePage() {
     setLoading(true)
 
     try {
-      const updateData = {
+      // Update employee data (without salary fields)
+      const employeeUpdateData = {
         staff_id: formData.staff_id,
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -156,21 +164,53 @@ export default function EditEmployeePage() {
         nhif_number: formData.nhif_number || null,
         bank_name: formData.bank_name || null,
         account_number: formData.account_number || null,
-        basic_salary: formData.basic_salary ? parseFloat(formData.basic_salary) : null,
-        car_allowance: formData.car_allowance ? parseFloat(formData.car_allowance) : null,
-        meal_allowance: formData.meal_allowance ? parseFloat(formData.meal_allowance) : null,
-        telephone_allowance: formData.telephone_allowance ? parseFloat(formData.telephone_allowance) : null,
-        housing_allowance: formData.housing_allowance ? parseFloat(formData.housing_allowance) : null,
         status: formData.status,
         updated_at: new Date().toISOString(),
       }
 
-      const { error } = await supabase
+      const { error: employeeError } = await supabase
         .from("employees")
-        .update(updateData)
+        .update(employeeUpdateData)
         .eq("id", employeeId)
 
-      if (error) throw error
+      if (employeeError) throw employeeError
+
+      // Update or create salary structure
+      const salaryData = {
+        employee_id: employeeId,
+        basic_salary: formData.basic_salary ? parseFloat(formData.basic_salary) : 0,
+        car_allowance: formData.car_allowance ? parseFloat(formData.car_allowance) : 0,
+        meal_allowance: formData.meal_allowance ? parseFloat(formData.meal_allowance) : 0,
+        telephone_allowance: formData.telephone_allowance ? parseFloat(formData.telephone_allowance) : 0,
+        housing_allowance: formData.housing_allowance ? parseFloat(formData.housing_allowance) : 0,
+        effective_date: new Date().toISOString().split('T')[0], // Today's date
+      }
+
+      // Check if salary structure exists
+      const { data: existingSalary } = await supabase
+        .from("salary_structures")
+        .select("id")
+        .eq("employee_id", employeeId)
+        .order("effective_date", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingSalary?.id) {
+        // Update existing salary structure
+        const { error: salaryError } = await supabase
+          .from("salary_structures")
+          .update(salaryData)
+          .eq("id", existingSalary.id)
+
+        if (salaryError) throw salaryError
+      } else {
+        // Create new salary structure
+        const { error: salaryError } = await supabase
+          .from("salary_structures")
+          .insert(salaryData)
+
+        if (salaryError) throw salaryError
+      }
 
       toast({
         title: "Success",
