@@ -24,20 +24,20 @@ export function ApprovalTimeline({ payrollRun, className }: ApprovalTimelineProp
   const steps: ApprovalStep[] = [
     {
       step: 1,
-      role: "finance",
-      label: "Finance Processing",
+      role: "hr",
+      label: "HR Processing",
       status: getStepStatus(payrollRun, 1),
-      approver: payrollRun.processed_by ? "Finance Team" : undefined,
+      approver: payrollRun.processed_by ? "HR Team" : undefined,
       timestamp: payrollRun.processed_at,
     },
     {
       step: 2,
-      role: "hr",
-      label: "HR Approval",
+      role: "finance",
+      label: "Finance Reconciliation",
       status: getStepStatus(payrollRun, 2),
-      approver: payrollRun.hr_approved_by ? "HR Team" : undefined,
-      timestamp: payrollRun.hr_approved_at,
-      comments: payrollRun.status === "hr_rejected" ? payrollRun.rejection_comments : undefined,
+      approver: payrollRun.finance_approved_by ? "Finance Team" : undefined,
+      timestamp: payrollRun.finance_approved_at,
+      comments: payrollRun.status === "finance_rejected" ? payrollRun.rejection_comments : undefined,
     },
     {
       step: 3,
@@ -143,18 +143,18 @@ function getStepStatus(
   const status = payrollRun.status
 
   switch (step) {
-    case 1: // Finance Processing
+    case 1: // HR Processing
       if (status === "draft") return "waiting"
-      return "approved" // If we're past draft, finance has processed
+      return "approved" // If we're past draft, HR has processed
 
-    case 2: // HR Approval
+    case 2: // Finance Reconciliation
       if (["draft", "processing"].includes(status)) return "waiting"
-      if (status === "hr_pending") return "pending"
-      if (status === "hr_rejected") return "rejected"
-      return "approved" // If we're past hr_pending, HR has approved
+      if (status === "finance_pending") return "pending"
+      if (status === "finance_rejected") return "rejected"
+      return "approved" // If we're past finance_pending, Finance has approved
 
     case 3: // Management Approval
-      if (["draft", "processing", "hr_pending", "hr_rejected"].includes(status))
+      if (["draft", "processing", "finance_pending", "finance_rejected"].includes(status))
         return "waiting"
       if (status === "mgmt_pending") return "pending"
       if (status === "mgmt_rejected") return "rejected"

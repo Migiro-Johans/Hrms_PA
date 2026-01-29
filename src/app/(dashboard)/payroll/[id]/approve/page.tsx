@@ -235,7 +235,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
               <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
               <div>
                 <p className="font-medium text-red-800">
-                  Payroll was rejected by {payrollRun.status === "hr_rejected" ? "HR" : "Management"}
+                  Payroll was rejected by {payrollRun.status === "finance_rejected" ? "Finance" : "Management"}
                 </p>
                 <p className="text-sm text-red-600 mt-1">
                   Reason: {payrollRun.rejection_comments}
@@ -389,8 +389,8 @@ export default function PayrollApprovePage({ params }: PageProps) {
                 <p className="text-sm text-muted-foreground text-center">
                   {payrollRun.status === "approved" || payrollRun.status === "paid"
                     ? "This payroll has already been approved."
-                    : payrollRun.status === "hr_pending"
-                      ? "Awaiting HR approval."
+                    : payrollRun.status === "finance_pending"
+                      ? "Awaiting Finance reconciliation."
                       : payrollRun.status === "mgmt_pending"
                         ? "Awaiting Management approval."
                         : "No approval actions available."}

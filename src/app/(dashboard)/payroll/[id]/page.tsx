@@ -203,7 +203,7 @@ export default async function PayrollDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {["hr_rejected", "mgmt_rejected"].includes(payrollRun.status) && payrollRun.rejection_comments && (
+      {["finance_rejected", "mgmt_rejected"].includes(payrollRun.status) && payrollRun.rejection_comments && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="py-4">
             <div className="flex items-center gap-3">
