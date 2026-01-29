@@ -141,65 +141,16 @@ export default function PayrollApprovePage({ params }: PageProps) {
     setIsSubmitting(true)
 
     try {
-      const currentStatus = payrollRun?.status
-      let newStatus = ""
-      const updateData: Record<string, unknown> = {}
-
-      if (action === "approve") {
-        // Finance reconciles -> move to management pending
-        if (currentStatus === "finance_pending") {
-          newStatus = "mgmt_pending"
-          updateData.finance_approved_by = currentUserId
-          updateData.finance_approved_at = new Date().toISOString()
-        }
-        // Management approves -> approved
-        else if (currentStatus === "mgmt_pending") {
-          newStatus = "approved"
-          updateData.management_approved_by = currentUserId
-          updateData.management_approved_at = new Date().toISOString()
-        }
-      } else {
-        // Rejection
-        if (currentStatus === "finance_pending") {
-          newStatus = "finance_rejected"
-        } else if (currentStatus === "mgmt_pending") {
-          newStatus = "mgmt_rejected"
-        }
-        updateData.rejection_comments = comments.trim()
-      }
-
-      if (!newStatus) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Invalid payroll status for this action.",
-        })
-        return
-      }
-
-      const { error } = await supabase
-        .from("payroll_runs")
-        .update({
-          status: newStatus,
-          ...updateData,
-        })
-        .eq("id", params.id)
-
-      if (error) throw error
-
-      // Process the approval request workflow
+      // Process the approval request workflow - this handles all status updates
       if (approvalRequestId && currentEmployeeId) {
-        try {
-          await processApprovalAction({
-            requestId: approvalRequestId,
-            approverId: currentEmployeeId,
-            action: action === "approve" ? "approved" : "rejected",
-            comments: comments.trim() || (action === "approve" ? "Approved" : "Rejected"),
-          })
-        } catch (workflowError) {
-          console.error("Failed to process workflow approval:", workflowError)
-          // Don't fail the entire approval if workflow update fails
-        }
+        await processApprovalAction({
+          requestId: approvalRequestId,
+          approverId: currentEmployeeId,
+          action: action === "approve" ? "approved" : "rejected",
+          comments: comments.trim() || (action === "approve" ? "Approved" : "Rejected"),
+        })
+      } else {
+        throw new Error("Missing approval request or employee information")
       }
 
       toast({
