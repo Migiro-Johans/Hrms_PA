@@ -2,7 +2,10 @@
 -- New workflow: HR processes → Finance reconciles → Management approves → Paid
 -- Old workflow: Finance processes → HR approves → Management approves → Paid
 
--- Add finance_approved_at column if it doesn't exist (finance_approved_by already exists)
+-- Add finance approval tracking columns
+ALTER TABLE payroll_runs 
+  ADD COLUMN IF NOT EXISTS finance_approved_by UUID REFERENCES auth.users(id);
+
 ALTER TABLE payroll_runs 
   ADD COLUMN IF NOT EXISTS finance_approved_at TIMESTAMPTZ;
 
