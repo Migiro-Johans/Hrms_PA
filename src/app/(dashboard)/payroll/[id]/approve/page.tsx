@@ -140,6 +140,9 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
     setIsSubmitting(true)
 
+    // Capture current status before processing
+    const currentStatus = payrollRun?.status
+
     try {
       // Process the approval request workflow - this handles all status updates
       if (approvalRequestId && currentEmployeeId) {
@@ -156,8 +159,12 @@ export default function PayrollApprovePage({ params }: PageProps) {
       toast({
         title: action === "approve" ? "Payroll Approved" : "Payroll Rejected",
         description: action === "approve"
-          ? "The payroll has been approved and moved to the next stage."
-          : "The payroll has been rejected. Finance will be notified.",
+          ? currentStatus === "hr_pending" ? "The payroll has been submitted to Finance for reconciliation." :
+            currentStatus === "finance_pending" ? "The payroll has been reconciled and sent to Management for approval." :
+            currentStatus === "mgmt_pending" ? "The payroll has been approved and sent to Finance for payment." :
+            currentStatus === "payment_pending" ? "The payroll has been marked as paid." :
+            "The payroll has been approved and moved to the next stage."
+          : "The payroll has been rejected. The relevant team will be notified.",
       })
 
       router.push("/payroll")
@@ -417,7 +424,10 @@ export default function PayrollApprovePage({ params }: PageProps) {
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                       )}
-                      {payrollRun.status === "payment_pending" ? "Confirm Payment" : "Approve"}
+                      {payrollRun.status === "hr_pending" ? "Submit to Finance" :
+                       payrollRun.status === "finance_pending" ? "Approve & Submit to Management" :
+                       payrollRun.status === "mgmt_pending" ? "Approve for Payment" :
+                       payrollRun.status === "payment_pending" ? "Confirm Payment" : "Approve"}
                     </Button>
                   </>
                 ) : (

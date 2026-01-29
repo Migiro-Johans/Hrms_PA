@@ -404,14 +404,14 @@ export default function ProcessPayrollPage() {
         return
       }
 
-      // Update status to finance_pending for approval workflow
-      // HR processes → Finance reconciles → Management approves → Paid
+      // Update status to hr_pending for approval workflow
+      // HR submits → Finance reconciles → Management approves → Finance marks as paid
       await supabase
         .from("payroll_runs")
-        .update({ status: "finance_pending" })
+        .update({ status: "hr_pending" })
         .eq("id", payrollRun.id)
 
-      // Create approval request for Finance team
+      // Create approval request - starts at HR submission step
       if (companyId && employeeId) {
         try {
           await createApprovalRequestAction({
@@ -427,8 +427,8 @@ export default function ProcessPayrollPage() {
       }
 
       toast({
-        title: "Payroll Submitted for Reconciliation",
-        description: `Payroll for ${getMonthName(month)} ${year} has been submitted for Finance reconciliation`,
+        title: "Payroll Submitted to Finance",
+        description: `Payroll for ${getMonthName(month)} ${year} has been submitted to Finance for reconciliation`,
       })
 
       router.push(`/payroll/${payrollRun.id}`)
