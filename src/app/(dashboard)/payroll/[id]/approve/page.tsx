@@ -159,8 +159,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
       toast({
         title: action === "approve" ? "Payroll Approved" : "Payroll Rejected",
         description: action === "approve"
-          ? currentStatus === "hr_pending" ? "The payroll has been submitted to Finance for reconciliation." :
-            currentStatus === "finance_pending" ? "The payroll has been reconciled and sent to Management for approval." :
+          ? currentStatus === "finance_pending" ? "The payroll has been reconciled and sent to Management for approval." :
             currentStatus === "mgmt_pending" ? "The payroll has been approved and marked as paid." :
             "The payroll has been approved and moved to the next stage."
           : "The payroll has been rejected. The relevant team will be notified.",
@@ -191,19 +190,17 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
   if (!payrollRun) return null
 
-  const isRejected = ["hr_rejected", "finance_rejected", "mgmt_rejected"].includes(payrollRun.status)
+  const isRejected = ["finance_rejected", "mgmt_rejected"].includes(payrollRun.status)
 
   // Determine if user can approve based on role and status
-  // Step 1: HR submits, Step 2: Finance reconciles, Step 3: Management approves and marks as paid
-  const isPendingApproval = ["hr_pending", "finance_pending", "mgmt_pending"].includes(payrollRun.status)
-  const canSubmitAsHR = ["admin", "hr"].includes(userRole) && payrollRun.status === "hr_pending"
+  // Step 1: Finance reconciles, Step 2: Management approves and marks as paid
+  const isPendingApproval = ["finance_pending", "mgmt_pending"].includes(payrollRun.status)
   const canReconcileAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "finance_pending"
   const canApproveAsManagement = ["admin", "management"].includes(userRole) && payrollRun.status === "mgmt_pending"
-  const canApprove = canSubmitAsHR || canReconcileAsFinance || canApproveAsManagement
+  const canApprove = canReconcileAsFinance || canApproveAsManagement
 
   // Get the approval stage label
   const getApprovalStage = () => {
-    if (payrollRun.status === "hr_pending") return "HR Submission"
     if (payrollRun.status === "finance_pending") return "Finance Reconciliation"
     if (payrollRun.status === "mgmt_pending") return "Management Approval & Payment"
     return "Approval"
@@ -421,8 +418,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                       )}
-                      {payrollRun.status === "hr_pending" ? "Submit to Finance" :
-                       payrollRun.status === "finance_pending" ? "Approve & Submit to Management" :
+                      {payrollRun.status === "finance_pending" ? "Approve & Submit to Management" :
                        payrollRun.status === "mgmt_pending" ? "Approve & Mark as Paid" : "Approve"}
                     </Button>
                   </>

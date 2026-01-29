@@ -1,7 +1,7 @@
--- Simplify payroll workflow to 3 steps
--- Step 1: HR submits to Finance for reconciliation
--- Step 2: Finance reconciles and submits to Management
--- Step 3: Management approves and marks as paid
+-- Simplify payroll workflow to 2 steps
+-- HR processes payroll (status: processing), then submits to Finance
+-- Step 1: Finance reconciles and submits to Management (status: finance_pending)
+-- Step 2: Management approves and marks as paid (status: mgmt_pending → paid)
 
 -- First, clean up old payroll data from previous workflow
 -- Delete payslips associated with old payroll runs
@@ -26,15 +26,14 @@ WHERE entity_type = 'payroll';
 DELETE FROM payroll_runs 
 WHERE status IN ('hr_pending', 'finance_pending', 'mgmt_pending', 'payment_pending', 'hr_rejected', 'finance_rejected', 'mgmt_rejected', 'payment_rejected');
 
--- Keep only draft and paid payrolls
--- Draft payrolls can be reprocessed with the new workflow
+-- Keep only draft, processing, and paid payrolls
+-- Draft/processing payrolls can be reprocessed with the new workflow
 -- Paid payrolls are historical records and should be preserved
 
--- Update workflow definition to 3-step order
+-- Update workflow definition to 2-step order
 UPDATE workflow_definitions
 SET steps = '[
-  {"order": 1, "role": "hr", "action": "submit", "required": true},
-  {"order": 2, "role": "finance", "action": "reconcile", "required": true},
-  {"order": 3, "role": "management", "action": "approve_and_pay", "required": true}
+  {"order": 1, "role": "finance", "action": "reconcile", "required": true},
+  {"order": 2, "role": "management", "action": "approve_and_pay", "required": true}
 ]'::jsonb
 WHERE entity_type = 'payroll';

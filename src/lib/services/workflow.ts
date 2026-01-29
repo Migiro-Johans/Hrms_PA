@@ -86,7 +86,7 @@ export async function createApprovalRequest(
   if (entityType === 'payroll') {
     await supabase
       .from('payroll_runs')
-      .update({ status: 'hr_pending' })
+      .update({ status: 'finance_pending' })
       .eq('id', entityId);
   } else if (entityType === 'leave') {
     await supabase
@@ -197,18 +197,16 @@ export async function processApproval(
     });
 
     if (newStatus === 'rejected') {
-      // Step 1 = HR, Step 2 = Finance, Step 3 = Management
+      // Step 1 = Finance, Step 2 = Management
       if (currentStep === 1) {
-        payrollStatus = 'hr_rejected';
-      } else if (currentStep === 2) {
         payrollStatus = 'finance_rejected';
-      } else if (currentStep === 3) {
+      } else if (currentStep === 2) {
         payrollStatus = 'mgmt_rejected';
       }
       updateData.rejection_comments = comments;
     } else if (newStatus === 'approved') {
       payrollStatus = 'paid';
-      // Record final approval and payment by management (step 3)
+      // Record final approval and payment by management (step 2)
       updateData.paid_by = approverId;
       updateData.paid_at = new Date().toISOString();
       updateData.approved_by = approverId;
@@ -218,11 +216,6 @@ export async function processApproval(
     } else {
       // Pending next step
       if (newStep === 2) {
-        payrollStatus = 'finance_pending';
-        // Record HR approval when moving to finance step
-        updateData.hr_approved_by = approverId;
-        updateData.hr_approved_at = new Date().toISOString();
-      } else if (newStep === 3) {
         payrollStatus = 'mgmt_pending';
         // Record Finance reconciliation when moving to management step
         updateData.finance_approved_by = approverId;

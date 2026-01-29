@@ -404,14 +404,13 @@ export default function ProcessPayrollPage() {
         return
       }
 
-      // Update status to hr_pending for approval workflow
-      // HR submits → Finance reconciles → Management approves → Finance marks as paid
+      // Update status to finance_pending - HR submits to Finance
       await supabase
         .from("payroll_runs")
-        .update({ status: "hr_pending" })
+        .update({ status: "finance_pending" })
         .eq("id", payrollRun.id)
 
-      // Create approval request - starts at HR submission step
+      // Create approval request - starts at Finance step
       if (companyId && employeeId) {
         try {
           await createApprovalRequestAction({

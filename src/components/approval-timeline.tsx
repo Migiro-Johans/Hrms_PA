@@ -24,27 +24,18 @@ export function ApprovalTimeline({ payrollRun, className }: ApprovalTimelineProp
   const steps: ApprovalStep[] = [
     {
       step: 1,
-      role: "hr",
-      label: "HR Submission",
-      status: getStepStatus(payrollRun, 1),
-      approver: payrollRun.hr_approved_by ? "HR Team" : undefined,
-      timestamp: payrollRun.hr_approved_at,
-      comments: payrollRun.status === "hr_rejected" ? payrollRun.rejection_comments : undefined,
-    },
-    {
-      step: 2,
       role: "finance",
       label: "Finance Reconciliation",
-      status: getStepStatus(payrollRun, 2),
+      status: getStepStatus(payrollRun, 1),
       approver: payrollRun.finance_approved_by ? "Finance Team" : undefined,
       timestamp: payrollRun.finance_approved_at,
       comments: payrollRun.status === "finance_rejected" ? payrollRun.rejection_comments : undefined,
     },
     {
-      step: 3,
+      step: 2,
       role: "management",
       label: "Management Approval & Payment",
-      status: getStepStatus(payrollRun, 3),
+      status: getStepStatus(payrollRun, 2),
       approver: payrollRun.management_approved_by || payrollRun.paid_by ? "Management" : undefined,
       timestamp: payrollRun.management_approved_at || payrollRun.paid_at,
       comments: payrollRun.status === "mgmt_rejected" ? payrollRun.rejection_comments : undefined,
@@ -137,21 +128,14 @@ function getStepStatus(
   const status = payrollRun.status
 
   switch (step) {
-    case 1: // HR Submission
+    case 1: // Finance Reconciliation
       if (status === "draft" || status === "processing") return "waiting"
-      if (status === "hr_pending") return "pending"
-      if (status === "hr_rejected") return "rejected"
-      return "approved" // If we're past hr_pending, HR has approved
-
-    case 2: // Finance Reconciliation
-      if (["draft", "processing", "hr_pending", "hr_rejected"].includes(status))
-        return "waiting"
       if (status === "finance_pending") return "pending"
       if (status === "finance_rejected") return "rejected"
       return "approved" // If we're past finance_pending, Finance has approved
 
-    case 3: // Management Approval & Payment
-      if (["draft", "processing", "hr_pending", "hr_rejected", "finance_pending", "finance_rejected"].includes(status))
+    case 2: // Management Approval & Payment
+      if (["draft", "processing", "finance_pending", "finance_rejected"].includes(status))
         return "waiting"
       if (status === "mgmt_pending") return "pending"
       if (status === "mgmt_rejected") return "rejected"
