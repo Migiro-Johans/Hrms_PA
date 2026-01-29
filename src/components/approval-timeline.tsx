@@ -51,9 +51,11 @@ export function ApprovalTimeline({ payrollRun, className }: ApprovalTimelineProp
     {
       step: 4,
       role: "payment",
-      label: "Payment",
+      label: "Payment Processing",
       status: getStepStatus(payrollRun, 4),
+      approver: payrollRun.paid_by ? "Finance Team" : undefined,
       timestamp: payrollRun.paid_at,
+      comments: payrollRun.status === "payment_rejected" ? payrollRun.rejection_comments : undefined,
     },
   ]
 
@@ -162,7 +164,8 @@ function getStepStatus(
 
     case 4: // Payment
       if (status === "paid") return "approved"
-      if (status === "approved") return "pending"
+      if (status === "payment_pending") return "pending"
+      if (status === "payment_rejected") return "rejected"
       return "waiting"
 
     default:

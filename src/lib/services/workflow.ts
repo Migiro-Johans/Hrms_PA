@@ -189,27 +189,34 @@ export async function processApproval(
     const updateData: Record<string, unknown> = {};
 
     if (newStatus === 'rejected') {
-      // Step 1 = Finance, Step 2 = Management
+      // Step 1 = Finance Reconciliation, Step 2 = Management, Step 3 = Finance Payment
       if (currentStep === 1) {
         payrollStatus = 'finance_rejected';
       } else if (currentStep === 2) {
         payrollStatus = 'mgmt_rejected';
+      } else if (currentStep === 3) {
+        payrollStatus = 'payment_rejected';
       }
       updateData.rejection_comments = comments;
     } else if (newStatus === 'approved') {
-      payrollStatus = 'approved';
-      // Record management approval (final step)
-      updateData.management_approved_by = approverId;
-      updateData.management_approved_at = new Date().toISOString();
+      payrollStatus = 'paid';
+      // Record payment completion (final step)
+      updateData.paid_by = approverId;
+      updateData.paid_at = new Date().toISOString();
       updateData.approved_by = approverId;
       updateData.approved_at = new Date().toISOString();
     } else {
       // Pending next step
       if (newStep === 2) {
         payrollStatus = 'mgmt_pending';
-        // Record Finance approval when moving to management step
+        // Record Finance reconciliation when moving to management step
         updateData.finance_approved_by = approverId;
         updateData.finance_approved_at = new Date().toISOString();
+      } else if (newStep === 3) {
+        payrollStatus = 'payment_pending';
+        // Record Management approval when moving to payment step
+        updateData.management_approved_by = approverId;
+        updateData.management_approved_at = new Date().toISOString();
       }
     }
 

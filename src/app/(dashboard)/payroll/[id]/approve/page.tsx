@@ -37,6 +37,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
   const [currentUserId, setCurrentUserId] = useState<string>("")
   const [currentEmployeeId, setCurrentEmployeeId] = useState<string>("")
   const [approvalRequestId, setApprovalRequestId] = useState<string>("")
+  const [approvalHistory, setApprovalHistory] = useState<any[]>([])
   const [totals, setTotals] = useState({ gross: 0, net: 0, paye: 0, nssf: 0, shif: 0, ahl: 0 })
 
   // Approval state
@@ -94,6 +95,20 @@ export default function PayrollApprovePage({ params }: PageProps) {
     const approvalStatus = await getApprovalStatusAction("payroll", params.id)
     if (approvalStatus.data?.id) {
       setApprovalRequestId(approvalStatus.data.id)
+      
+      // Load approval history
+      const { data: historyData } = await supabase
+        .from("approval_actions")
+        .select(`
+          *,
+          employees:approver_id(first_name, last_name)
+        `)
+        .eq("request_id", approvalStatus.data.id)
+        .order("created_at", { ascending: true })
+      
+      if (historyData) {
+        setApprovalHistory(historyData)
+      }
     }
 
     // Calculate totals
@@ -219,19 +234,21 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
   if (!payrollRun) return null
 
-  const isRejected = ["finance_rejected", "mgmt_rejected"].includes(payrollRun.status)
+  const isRejected = ["finance_rejected", "mgmt_rejected", "payment_rejected"].includes(payrollRun.status)
 
   // Determine if user can approve based on role and status
-  // Finance reconciles first, then Management approves
-  const isPendingApproval = ["finance_pending", "mgmt_pending"].includes(payrollRun.status)
+  // Finance reconciles first, then Management approves, then Finance makes payment
+  const isPendingApproval = ["finance_pending", "mgmt_pending", "payment_pending"].includes(payrollRun.status)
   const canReconcileAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "finance_pending"
   const canApproveAsManagement = ["admin", "management"].includes(userRole) && payrollRun.status === "mgmt_pending"
-  const canApprove = canReconcileAsFinance || canApproveAsManagement
+  const canPayAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "payment_pending"
+  const canApprove = canReconcileAsFinance || canApproveAsManagement || canPayAsFinance
 
   // Get the approval stage label
   const getApprovalStage = () => {
     if (payrollRun.status === "finance_pending") return "Finance Reconciliation"
     if (payrollRun.status === "mgmt_pending") return "Management Approval"
+    if (payrollRun.status === "payment_pending") return "Payment Processing"
     return "Approval"
   }
 
@@ -328,6 +345,75 @@ export default function PayrollApprovePage({ params }: PageProps) {
             </CardContent>
           </Card>
 
+          {/* Approval History */}
+          {approvalHistory.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Approval History</CardTitle>
+                <CardDescription>
+                  Review notes and decisions from previous approval steps
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {approvalHistory.map((action: any, index: number) => {
+                    const approverName = action.employees
+                      ? `${action.employees.first_name} ${action.employees.last_name}`
+                      : "Unknown"
+                    const actionDate = new Date(action.created_at).toLocaleString("en-KE", {
+                      dateStyle: "medium",
+                      timeStyle: "short"
+                    })
+                    const stepName = 
+                      action.step_number === 1 ? "Finance Reconciliation" : 
+                      action.step_number === 2 ? "Management Approval" : 
+                      "Payment Processing"
+                    const isApproved = action.action === "approved"
+                    
+                    return (
+                      <div
+                        key={action.id}
+                        className={`p-4 rounded-lg border ${
+                          isApproved ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {isApproved ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-600" />
+                            )}
+                            <div>
+                              <p className="font-medium text-sm">{stepName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {approverName} • {actionDate}
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-xs font-medium px-2 py-1 rounded ${
+                              isApproved
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {isApproved ? "Approved" : "Rejected"}
+                          </span>
+                        </div>
+                        {action.comments && (
+                          <div className="mt-2 pl-7">
+                            <p className="text-sm text-gray-700">{action.comments}</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Direct Approval Actions */}
           {canApprove && (
             <Card className="border-2 border-primary/20">
@@ -377,7 +463,7 @@ export default function PayrollApprovePage({ params }: PageProps) {
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                       )}
-                      Approve
+                      {payrollRun.status === "payment_pending" ? "Confirm Payment" : "Approve"}
                     </Button>
                   </>
                 ) : (
