@@ -340,6 +340,22 @@ export default function ProcessPayrollPage() {
         return
       }
 
+      // Delete existing payslips for this payroll run before creating new ones
+      // This allows re-processing payroll if needed
+      const { error: deleteError } = await supabase
+        .from("payslips")
+        .delete()
+        .eq("payroll_run_id", payrollRun.id)
+
+      if (deleteError) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: `Failed to clear existing payslips: ${deleteError.message}`,
+        })
+        return
+      }
+
       // Create payslips
       const calendarDays = getDaysInMonth(year, month)
       const payslips = preview.map(({ employee, calculation }) => ({
