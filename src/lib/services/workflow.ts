@@ -188,6 +188,14 @@ export async function processApproval(
     let payrollStatus: string = '';
     const updateData: Record<string, unknown> = {};
 
+    console.log('[processApprovalAction] Syncing payroll status:', {
+      requestId,
+      currentStep,
+      newStep,
+      newStatus,
+      action
+    });
+
     if (newStatus === 'rejected') {
       // Step 1 = Finance Reconciliation, Step 2 = Management, Step 3 = Finance Payment
       if (currentStep === 1) {
@@ -219,6 +227,12 @@ export async function processApproval(
         updateData.management_approved_at = new Date().toISOString();
       }
     }
+
+    console.log('[processApprovalAction] Updating payroll status:', {
+      entityId: request.entity_id,
+      payrollStatus,
+      updateData
+    });
 
     if (payrollStatus) {
       await supabase
