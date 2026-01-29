@@ -124,7 +124,7 @@ export interface RecurringDeduction {
 // PAYROLL
 // =====================================================
 
-export type PayrollStatus = 'draft' | 'processing' | 'hr_pending' | 'hr_rejected' | 'finance_pending' | 'finance_rejected' | 'mgmt_pending' | 'mgmt_rejected' | 'payment_pending' | 'payment_rejected' | 'approved' | 'paid';
+export type PayrollStatus = 'draft' | 'processing' | 'hr_pending' | 'hr_rejected' | 'finance_pending' | 'finance_rejected' | 'mgmt_pending' | 'mgmt_rejected' | 'approved' | 'paid';
 
 export interface PayrollRun {
   id: string;

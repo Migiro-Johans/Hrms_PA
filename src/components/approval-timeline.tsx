@@ -43,20 +43,11 @@ export function ApprovalTimeline({ payrollRun, className }: ApprovalTimelineProp
     {
       step: 3,
       role: "management",
-      label: "Management Approval",
+      label: "Management Approval & Payment",
       status: getStepStatus(payrollRun, 3),
-      approver: payrollRun.management_approved_by ? "Management" : undefined,
-      timestamp: payrollRun.management_approved_at,
+      approver: payrollRun.management_approved_by || payrollRun.paid_by ? "Management" : undefined,
+      timestamp: payrollRun.management_approved_at || payrollRun.paid_at,
       comments: payrollRun.status === "mgmt_rejected" ? payrollRun.rejection_comments : undefined,
-    },
-    {
-      step: 4,
-      role: "payment",
-      label: "Payment Processing",
-      status: getStepStatus(payrollRun, 4),
-      approver: payrollRun.paid_by ? "Finance Team" : undefined,
-      timestamp: payrollRun.paid_at,
-      comments: payrollRun.status === "payment_rejected" ? payrollRun.rejection_comments : undefined,
     },
   ]
 
@@ -159,17 +150,12 @@ function getStepStatus(
       if (status === "finance_rejected") return "rejected"
       return "approved" // If we're past finance_pending, Finance has approved
 
-    case 3: // Management Approval
+    case 3: // Management Approval & Payment
       if (["draft", "processing", "hr_pending", "hr_rejected", "finance_pending", "finance_rejected"].includes(status))
         return "waiting"
       if (status === "mgmt_pending") return "pending"
       if (status === "mgmt_rejected") return "rejected"
-      return "approved" // If we're past mgmt_pending, management has approved
-
-    case 4: // Payment
       if (status === "paid") return "approved"
-      if (status === "payment_pending") return "pending"
-      if (status === "payment_rejected") return "rejected"
       return "waiting"
 
     default:

@@ -197,24 +197,24 @@ export async function processApproval(
     });
 
     if (newStatus === 'rejected') {
-      // Step 1 = HR, Step 2 = Finance, Step 3 = Management, Step 4 = Finance Payment
+      // Step 1 = HR, Step 2 = Finance, Step 3 = Management
       if (currentStep === 1) {
         payrollStatus = 'hr_rejected';
       } else if (currentStep === 2) {
         payrollStatus = 'finance_rejected';
       } else if (currentStep === 3) {
         payrollStatus = 'mgmt_rejected';
-      } else if (currentStep === 4) {
-        payrollStatus = 'payment_rejected';
       }
       updateData.rejection_comments = comments;
     } else if (newStatus === 'approved') {
       payrollStatus = 'paid';
-      // Record payment completion (final step)
+      // Record final approval and payment by management (step 3)
       updateData.paid_by = approverId;
       updateData.paid_at = new Date().toISOString();
       updateData.approved_by = approverId;
       updateData.approved_at = new Date().toISOString();
+      updateData.management_approved_by = approverId;
+      updateData.management_approved_at = new Date().toISOString();
     } else {
       // Pending next step
       if (newStep === 2) {
@@ -227,11 +227,6 @@ export async function processApproval(
         // Record Finance reconciliation when moving to management step
         updateData.finance_approved_by = approverId;
         updateData.finance_approved_at = new Date().toISOString();
-      } else if (newStep === 4) {
-        payrollStatus = 'payment_pending';
-        // Record Management approval when moving to payment step
-        updateData.management_approved_by = approverId;
-        updateData.management_approved_at = new Date().toISOString();
       }
     }
 
