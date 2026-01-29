@@ -124,11 +124,11 @@ export default async function PayrollDetailPage({ params }: PageProps) {
   }
 
   // Determine user actions
-  const canApproveAsHR = ["admin", "hr"].includes(userRole) && payrollRun.status === "hr_pending"
+  const canReconcileAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "finance_pending"
   const canApproveAsManagement = ["admin", "management"].includes(userRole) && payrollRun.status === "mgmt_pending"
   const canMarkAsPaid = ["admin", "finance"].includes(userRole) && payrollRun.status === "approved"
-  const canResubmit = ["admin", "finance"].includes(userRole) && ["hr_rejected", "mgmt_rejected"].includes(payrollRun.status)
-  const showApproveButton = canApproveAsHR || canApproveAsManagement
+  const canResubmit = ["admin", "hr"].includes(userRole) && ["finance_rejected", "mgmt_rejected"].includes(payrollRun.status)
+  const showApproveButton = canReconcileAsFinance || canApproveAsManagement
 
   const handleResubmit = async () => {
     const { createClient } = await import("@/lib/supabase/client")
@@ -137,7 +137,7 @@ export default async function PayrollDetailPage({ params }: PageProps) {
     const { error } = await supabase
       .from("payroll_runs")
       .update({
-        status: "hr_pending",
+        status: "finance_pending",
         rejection_comments: null,
       })
       .eq("id", params.id)

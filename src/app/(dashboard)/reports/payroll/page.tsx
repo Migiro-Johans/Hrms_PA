@@ -24,11 +24,11 @@ function getStatusBadgeVariant(status: string) {
     case 'approved':
     case 'paid':
       return 'success'
-    case 'hr_pending':
+    case 'finance_pending':
     case 'mgmt_pending':
     case 'processing':
       return 'warning'
-    case 'hr_rejected':
+    case 'finance_rejected':
     case 'mgmt_rejected':
       return 'destructive'
     default:

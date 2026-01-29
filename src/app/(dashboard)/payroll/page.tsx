@@ -40,12 +40,12 @@ export default async function PayrollPage() {
     .order("month", { ascending: false })
 
   // Determine which actions the user can take
-  const canProcessPayroll = ["admin", "finance"].includes(userRole)
-  const canApproveAsHR = ["admin", "hr"].includes(userRole)
+  const canProcessPayroll = ["admin", "hr"].includes(userRole)
+  const canReconcileAsFinance = ["admin", "finance"].includes(userRole)
   const canApproveAsManagement = ["admin", "management"].includes(userRole)
 
   // Count pending approvals for the user
-  const pendingForHR = payrollRuns?.filter(r => r.status === "hr_pending").length || 0
+  const pendingForFinance = payrollRuns?.filter(r => r.status === "finance_pending").length || 0
   const pendingForMgmt = payrollRuns?.filter(r => r.status === "mgmt_pending").length || 0
   const pendingApprovedNotPaid = payrollRuns?.filter(r => r.status === "approved").length || 0
 
@@ -69,7 +69,7 @@ export default async function PayrollPage() {
       </div>
 
       {/* Pending Approval Alerts */}
-      {canApproveAsHR && pendingForHR > 0 && (
+      {canReconcileAsFinance && pendingForFinance > 0 && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
@@ -79,14 +79,14 @@ export default async function PayrollPage() {
                 </div>
                 <div>
                   <p className="font-medium text-yellow-800">
-                    {pendingForHR} payroll{pendingForHR > 1 ? "s" : ""} awaiting HR approval
+                    {pendingForFinance} payroll{pendingForFinance > 1 ? "s" : ""} awaiting Finance reconciliation
                   </p>
                   <p className="text-sm text-yellow-600">
-                    Review and approve payroll runs processed by Finance
+                    Review and reconcile payroll runs processed by HR
                   </p>
                 </div>
               </div>
-              <Link href="/payroll?filter=hr_pending">
+              <Link href="/payroll?filter=finance_pending">
                 <Button variant="outline" size="sm" className="border-yellow-300 text-yellow-700 hover:bg-yellow-100">
                   Review Now
                 </Button>
@@ -213,7 +213,7 @@ export default async function PayrollPage() {
                 ) || 0
 
                 const showApproveButton =
-                  (canApproveAsHR && run.status === "hr_pending") ||
+                  (canReconcileAsFinance && run.status === "finance_pending") ||
                   (canApproveAsManagement && run.status === "mgmt_pending")
 
                 return (

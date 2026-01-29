@@ -121,11 +121,11 @@ export default function PayrollApprovePage({ params }: PageProps) {
       const updateData: Record<string, unknown> = {}
 
       if (action === "approve") {
-        // HR approves -> move to management pending
-        if (currentStatus === "hr_pending") {
+        // Finance reconciles -> move to management pending
+        if (currentStatus === "finance_pending") {
           newStatus = "mgmt_pending"
-          updateData.hr_approved_by = currentUserId
-          updateData.hr_approved_at = new Date().toISOString()
+          updateData.finance_approved_by = currentUserId
+          updateData.finance_approved_at = new Date().toISOString()
         }
         // Management approves -> approved
         else if (currentStatus === "mgmt_pending") {
@@ -135,8 +135,8 @@ export default function PayrollApprovePage({ params }: PageProps) {
         }
       } else {
         // Rejection
-        if (currentStatus === "hr_pending") {
-          newStatus = "hr_rejected"
+        if (currentStatus === "finance_pending") {
+          newStatus = "finance_rejected"
         } else if (currentStatus === "mgmt_pending") {
           newStatus = "mgmt_rejected"
         }
@@ -194,17 +194,18 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
   if (!payrollRun) return null
 
-  const isRejected = ["hr_rejected", "mgmt_rejected"].includes(payrollRun.status)
+  const isRejected = ["finance_rejected", "mgmt_rejected"].includes(payrollRun.status)
 
   // Determine if user can approve based on role and status
-  // Admin, HR, and Management can all approve at any pending stage
-  const isPendingApproval = ["hr_pending", "mgmt_pending"].includes(payrollRun.status)
-  const hasApprovalRole = ["admin", "hr", "management"].includes(userRole)
-  const canApprove = isPendingApproval && hasApprovalRole
+  // Finance reconciles first, then Management approves
+  const isPendingApproval = ["finance_pending", "mgmt_pending"].includes(payrollRun.status)
+  const canReconcileAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "finance_pending"
+  const canApproveAsManagement = ["admin", "management"].includes(userRole) && payrollRun.status === "mgmt_pending"
+  const canApprove = canReconcileAsFinance || canApproveAsManagement
 
   // Get the approval stage label
   const getApprovalStage = () => {
-    if (payrollRun.status === "hr_pending") return "HR Approval"
+    if (payrollRun.status === "finance_pending") return "Finance Reconciliation"
     if (payrollRun.status === "mgmt_pending") return "Management Approval"
     return "Approval"
   }

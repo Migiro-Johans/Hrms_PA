@@ -401,16 +401,16 @@ export default function ProcessPayrollPage() {
         return
       }
 
-      // Update status to hr_pending for approval workflow
-      // Finance processes → HR approves → Management approves → Paid
+      // Update status to finance_pending for approval workflow
+      // HR processes → Finance reconciles → Management approves → Paid
       await supabase
         .from("payroll_runs")
-        .update({ status: "hr_pending" })
+        .update({ status: "finance_pending" })
         .eq("id", payrollRun.id)
 
       toast({
-        title: "Payroll Submitted for Approval",
-        description: `Payroll for ${getMonthName(month)} ${year} has been submitted for HR approval`,
+        title: "Payroll Submitted for Reconciliation",
+        description: `Payroll for ${getMonthName(month)} ${year} has been submitted for Finance reconciliation`,
       })
 
       router.push(`/payroll/${payrollRun.id}`)

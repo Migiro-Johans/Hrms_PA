@@ -194,8 +194,8 @@ export const LINE_MANAGER_PERMISSIONS = {
 export const PAYROLL_STATUS = [
   'draft',
   'processing',
-  'hr_pending',
-  'hr_rejected',
+  'finance_pending',
+  'finance_rejected',
   'mgmt_pending',
   'mgmt_rejected',
   'approved',
@@ -205,8 +205,8 @@ export const PAYROLL_STATUS = [
 export const PAYROLL_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
   draft: { label: 'Draft', color: 'gray' },
   processing: { label: 'Processing', color: 'blue' },
-  hr_pending: { label: 'Awaiting HR Approval', color: 'yellow' },
-  hr_rejected: { label: 'Rejected by HR', color: 'red' },
+  finance_pending: { label: 'Awaiting Finance Reconciliation', color: 'yellow' },
+  finance_rejected: { label: 'Rejected by Finance', color: 'red' },
   mgmt_pending: { label: 'Awaiting Management Approval', color: 'yellow' },
   mgmt_rejected: { label: 'Rejected by Management', color: 'red' },
   approved: { label: 'Approved', color: 'green' },
