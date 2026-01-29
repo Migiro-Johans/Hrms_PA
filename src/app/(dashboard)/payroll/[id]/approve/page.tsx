@@ -185,18 +185,20 @@ export default function PayrollApprovePage({ params }: PageProps) {
 
   if (!payrollRun) return null
 
-  const isRejected = ["finance_rejected", "mgmt_rejected", "payment_rejected"].includes(payrollRun.status)
+  const isRejected = ["hr_rejected", "finance_rejected", "mgmt_rejected", "payment_rejected"].includes(payrollRun.status)
 
   // Determine if user can approve based on role and status
-  // Finance reconciles first, then Management approves, then Finance makes payment
-  const isPendingApproval = ["finance_pending", "mgmt_pending", "payment_pending"].includes(payrollRun.status)
+  // Step 1: HR submits, Step 2: Finance reconciles, Step 3: Management approves, Step 4: Finance pays
+  const isPendingApproval = ["hr_pending", "finance_pending", "mgmt_pending", "payment_pending"].includes(payrollRun.status)
+  const canSubmitAsHR = ["admin", "hr"].includes(userRole) && payrollRun.status === "hr_pending"
   const canReconcileAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "finance_pending"
   const canApproveAsManagement = ["admin", "management"].includes(userRole) && payrollRun.status === "mgmt_pending"
   const canPayAsFinance = ["admin", "finance"].includes(userRole) && payrollRun.status === "payment_pending"
-  const canApprove = canReconcileAsFinance || canApproveAsManagement || canPayAsFinance
+  const canApprove = canSubmitAsHR || canReconcileAsFinance || canApproveAsManagement || canPayAsFinance
 
   // Get the approval stage label
   const getApprovalStage = () => {
+    if (payrollRun.status === "hr_pending") return "HR Submission"
     if (payrollRun.status === "finance_pending") return "Finance Reconciliation"
     if (payrollRun.status === "mgmt_pending") return "Management Approval"
     if (payrollRun.status === "payment_pending") return "Payment Processing"
@@ -316,8 +318,9 @@ export default function PayrollApprovePage({ params }: PageProps) {
                       timeStyle: "short"
                     })
                     const stepName = 
-                      action.step_number === 1 ? "Finance Reconciliation" : 
-                      action.step_number === 2 ? "Management Approval" : 
+                      action.step_number === 1 ? "HR Submission" : 
+                      action.step_number === 2 ? "Finance Reconciliation" :
+                      action.step_number === 3 ? "Management Approval" :
                       "Payment Processing"
                     const isApproved = action.action === "approved"
                     

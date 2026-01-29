@@ -25,10 +25,11 @@ export function ApprovalTimeline({ payrollRun, className }: ApprovalTimelineProp
     {
       step: 1,
       role: "hr",
-      label: "HR Processing",
+      label: "HR Submission",
       status: getStepStatus(payrollRun, 1),
-      approver: payrollRun.processed_by ? "HR Team" : undefined,
-      timestamp: payrollRun.processed_at,
+      approver: payrollRun.hr_approved_by ? "HR Team" : undefined,
+      timestamp: payrollRun.hr_approved_at,
+      comments: payrollRun.status === "hr_rejected" ? payrollRun.rejection_comments : undefined,
     },
     {
       step: 2,
@@ -145,18 +146,21 @@ function getStepStatus(
   const status = payrollRun.status
 
   switch (step) {
-    case 1: // HR Processing
-      if (status === "draft") return "waiting"
-      return "approved" // If we're past draft, HR has processed
+    case 1: // HR Submission
+      if (status === "draft" || status === "processing") return "waiting"
+      if (status === "hr_pending") return "pending"
+      if (status === "hr_rejected") return "rejected"
+      return "approved" // If we're past hr_pending, HR has approved
 
     case 2: // Finance Reconciliation
-      if (["draft", "processing"].includes(status)) return "waiting"
+      if (["draft", "processing", "hr_pending", "hr_rejected"].includes(status))
+        return "waiting"
       if (status === "finance_pending") return "pending"
       if (status === "finance_rejected") return "rejected"
       return "approved" // If we're past finance_pending, Finance has approved
 
     case 3: // Management Approval
-      if (["draft", "processing", "finance_pending", "finance_rejected"].includes(status))
+      if (["draft", "processing", "hr_pending", "hr_rejected", "finance_pending", "finance_rejected"].includes(status))
         return "waiting"
       if (status === "mgmt_pending") return "pending"
       if (status === "mgmt_rejected") return "rejected"
